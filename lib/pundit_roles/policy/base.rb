@@ -1,13 +1,23 @@
 require 'active_support/core_ext/hash/slice'
 require 'active_support/core_ext/array/extract_options'
 require 'active_support/core_ext/string/inflections'
-require 'pry'
+require 'active_support/core_ext/object/blank'
 
-require_relative 'role/role'
+require_relative 'role'
+require_relative 'policy_defaults/defaults'
+
 
 module Policy
+
+  # Base policy class to be extended by all other policies, authorizes users based on roles they fall into,
+  # return a uniquely merged hash of permitted attributes and associations of each role the @user has.
+  #
+  # @param user [Object] the user that initiated the action
+  # @param record [Object] the object we're checking permissions of
   class Base
     extend Role
+
+    include PolicyDefaults::Defaults
 
     role :guest, authorize_with: :user_guest
 
@@ -18,30 +28,15 @@ module Policy
       @record = record
     end
 
-    def index?
-      false
-    end
-
-    def show?
-      false
-    end
-
-    def create?
-      false
-    end
-
-    def update?
-      false
-    end
-
-    def destroy?
-      false
-    end
-
+    # Is here
     def scope
       Pundit.authorize_scope!(user, record.class, fields)
     end
 
+    # Retrieves the permitted roles for the current @query, checks if @user is one or more of these roles
+    # and return a hash of attributes and associations that the @user has access to.
+    #
+    # @param query [Symbol, String] the predicate method to check on the policy (e.g. `:show?`)
     def resolve_query(query)
       permitted_roles = public_send(query)
       if permitted_roles.is_a? TrueClass or permitted_roles.is_a? FalseClass
@@ -49,10 +44,9 @@ module Policy
       end
 
       permissions_hash = self.class.permissions_hash
-      current_roles = {}
 
+      # Always checks if the @user is a :guest first. :guest users cannot only have the one :guest role
       guest = self.class::Guest.new(self, permissions_hash[:guest])
-
       if guest.test_condition
         if permitted_roles.include? :guest
           return guest.permitted
@@ -61,25 +55,12 @@ module Policy
         end
       end
 
-      permitted_roles.each do |permitted_role|
-        if permitted_role == :guest
-          next
-        end
-
-        begin
-          current_role = {role: permitted_role, class: "#{self.class}::#{permitted_role.to_s.classify}".constantize}
-          current_role_obj = current_role[:class].new(self, permissions_hash[current_role[:role]])
-          if current_role_obj.test_condition
-            current_roles[current_role[:role]] = current_role_obj.permitted
-          end
-        rescue NameError, NoMethodError
-          raise $!, "Something went wrong, #{current_role[:role]} possibly not defined, or maybe you forgot to define the test condition: it needs to be test_condition? and passed as test_condition, without the '?': #{$!}", $!.backtrace
-        end
-      end
+      current_roles = determine_current_roles(permitted_roles, permissions_hash)
 
       unless current_roles.present?
         return false
       end
+
       if current_roles.length == 1
         current_roles.values[0][:roles] = current_roles.keys[0]
         return current_roles.values[0]
@@ -90,6 +71,38 @@ module Policy
 
     private
 
+    # Build a hash of the roles that the user fulfills and the roles' attributes and associations,
+    # based on the test_condition of the role.
+    #
+    # @param permitted_roles [Hash] roles returned by the query
+    # @param permissions_hash [Hash] unrefined hash of options defined by all permitted_for methods
+    def determine_current_roles(permitted_roles, permissions_hash)
+      current_roles = {}
+
+      permitted_roles.each do |permitted_role|
+        if permitted_role == :guest
+          next
+        end
+
+        begin
+          current_role = {class: "#{self.class}::#{permitted_role.to_s.classify}".constantize}
+          current_role_obj = current_role[:class].new(self, permissions_hash[permitted_role])
+          if current_role_obj.test_condition
+            current_roles[permitted_role] = current_role_obj.permitted
+          end
+        rescue NoMethodError =>e
+          raise NoMethodError, "Could not find test condition, needs to be defined as 'current_user?' and passed to the role as 'authorize_with: :current_user' => #{e.message}"
+        rescue NameError => e
+          raise NameError, "#{current_role[:role]} not defined => #{e.message} "
+        end
+      end
+
+      return current_roles
+    end
+
+    # Uniquely merge the options of all roles that the user fulfills
+    #
+    # @param roles [Hash] roles and options that the user fulfills
     def unique_merge(roles)
       merged_hash = {attributes: {}, associations: {}, roles: []}
 
@@ -99,7 +112,6 @@ module Policy
         end
         merged_hash[:roles] << role
         option.each do |type, actions|
-          raise ArgumentError, "Permitted keys can only be #{_permitted_keys}" unless _permitted_keys.include? type
           unless actions.present?
             next
           end
@@ -115,56 +127,16 @@ module Policy
       return merged_hash
     end
 
+    # Helper method to be able to define allow: :guest, :user, etc. in the query methods
+    #
+    # @param *roles [Array] an array of permitted roles for a particular action
     def allow(*roles)
       return roles
     end
 
-    def default_authorization?
-      return false
-    end
-
-    def user_guest?
-      @user.nil?
-    end
-
-    def _permitted_keys
-      [:attributes, :associations]
-    end
-
-    def restricted_show_attributes
-      []
-    end
-
-    def restricted_save_attributes
-      [:id, :created_at, :updated_at]
-    end
-
-    def restricted_create_attributes
-      [:id, :created_at, :updated_at]
-    end
-
-    def restricted_update_attributes
-      [:id, :created_at, :updated_at]
-    end
-
-    def restricted_show_associations
-      []
-    end
-
-    def restricted_save_associations
-      []
-    end
-
-    def restricted_create_associations
-      []
-    end
-
-    def restricted_update_associations
-      []
-    end
-
+    # Scope class from Pundit, to be used for limiting scopes. Unchanged from Pundit,
+    # possible implementation forthcoming in a future update
     class Scope
-
       attr_reader :user, :scope
 
       def initialize(user, scope)
