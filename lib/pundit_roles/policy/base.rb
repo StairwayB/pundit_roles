@@ -1,6 +1,11 @@
-require 'role/role'
+require 'active_support/core_ext/hash/slice'
+require 'active_support/core_ext/array/extract_options'
+require 'active_support/core_ext/string/inflections'
+require 'pry'
 
-module ApplicationPolicy
+require_relative 'role/role'
+
+module Policy
   class Base
     extend Role
 

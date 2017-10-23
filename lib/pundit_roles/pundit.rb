@@ -1,9 +1,8 @@
-module Pundit
-
-  require 'action_controller/metal/exceptions'
-
+module PunditOverwrite
   def authorize(record, query = nil)
     query ||= params[:action].to_s + '?'
+
+    binding.pry
 
     @_pundit_policy_authorized = true
 
@@ -21,5 +20,8 @@ module Pundit
 
     return permitted_records
   end
+end
 
+module Pundit
+  prepend PunditOverwrite
 end

@@ -19,6 +19,7 @@ module Role
   end
 
   def create_role(role, permission, opts)
+    binding.pry
     begin
       permission.const_set role.to_s.classify, Class.new(Role::Base) {
         @authorize_with = "#{opts[:authorize_with]}?"
@@ -30,6 +31,7 @@ module Role
   end
 
   def permitted_for(role, opts)
+    binding.pry
     options = opts.slice(*_permitted_for_keys)
 
     @permissions_hash = {} if @permissions_hash.nil?
@@ -44,6 +46,7 @@ module Role
   end
 
   def permitted_assoc_for(role, assoc)
+    binding.pry
     options = assoc.slice(*_permitted_opt_for_keys)
 
     @permissions_hash = {} if @permissions_hash.nil?

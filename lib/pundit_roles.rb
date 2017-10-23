@@ -1,9 +1,8 @@
 require 'pundit_roles/version'
-require 'pundit_roles/application_policy/base'
 require 'pundit_roles/pundit'
-
+require 'pundit_roles/policy/base'
+require 'pundit'
 
 module PunditRoles
   include Pundit
-  include PunditRoles::Pundit
 end
