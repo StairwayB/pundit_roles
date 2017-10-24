@@ -1,5 +1,8 @@
 # PunditRoles
 
+[![Gem Version](https://badge.fury.io/rb/pundit_roles.svg)](https://badge.fury.io/rb/pundit_roles.svg)
+
+
 PunditRoles is a helper gem which works on top of [Pundit](https://github.com/elabs/pundit)
 (if you are not familiar with Pundit, it is recommended you read it's documentation before continuing).
 It allows you to extend Pundit's authorization system to include attributes and associations.
@@ -166,7 +169,7 @@ options of all three roles, meaning the `permitted[:attributes][:show]` would lo
 ```ruby
 [:username, :name, :avatar, :email, :phone_number, :is_admin]
 ```
-Notice that there are no duplicates. This is because whenever a user tries to access an action, 
+The authorize method does not return any duplicates.This is because whenever a user tries to access an action, 
 PunditRoles will evaluate whether the user falls into the roles permitted to perform said action, 
 and if they do, it will uniquely merge the options hashes of all of these.
 
@@ -211,7 +214,7 @@ end
 
 * **Important!** The `:guest` role is exclusionary by default, meaning it cannot be merged
 with other roles. It is also the first role that is evaluated, and if the user is a `:guest`, it will return the guest
-attributes if `:guest` is allowed, or raise `PunditNotAuthorized` if not. 
+attributes if `:guest` is allowed, or raise `Pundit::NotAuthorizedError` if not. 
 Do **NOT** overwrite the `:guest` role, that can lead to unexpected side effects, and if you wish to allow guest, use
 the existing role and not a custom one. 
 
