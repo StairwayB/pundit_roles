@@ -86,7 +86,7 @@ module Policy
             current_roles[permitted_role] = current_role_obj.permitted
           end
         rescue NoMethodError =>e
-          raise NoMethodError, "Could not find test condition, needs to be defined as 'current_user?' and passed to the role as 'authorize_with: :current_user' => #{e.message}"
+          raise NoMethodError, "Could not find test condition, needs to be defined as 'test_condition?' and passed to the role as 'authorize_with: :test_condition' => #{e.message}"
         rescue NameError => e
           raise NameError, "#{current_role[:role]} not defined => #{e.message} "
         end
