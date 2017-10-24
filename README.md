@@ -8,8 +8,12 @@ If you are already using Pundit, this should not conflict with any of Pundit's e
 You may use Pundit's features as well as the features from this gem interchangeably.
 
 Please note that this gem is not affiliated with Pundit or it's creators, but it very much
-appreciates the work that they did with their great authorization system. Also note that this is still early
-in it's development and is **NOT** considered production ready!
+appreciates the work that they did with their great authorization system. 
+
+* **Important** This is still early in it's development and is **NOT** considered production 
+ready. Consider what is here as a prototype for what will, in the future, be a reliable gem.
+As of yet, bugs and unforeseen issues may be present. If you happen to find any, please feel free
+to raise an issue. 
 
 ## Installation
 
@@ -38,9 +42,10 @@ end
 
 ## Roles
 
-PunditRoles operates around the notion of _**roles**_. Each role needs to be defined at the Policy level,
-and provided with a conditional method that determines whether the @user(current_user in the context of the Policy) falls into this role. Additionally, each
-role can have a set of permitted _**attributes**_ and _**associations**_(from here on collectively referred to as **_options_**) 
+PunditRoles operates around the notion of _**roles**_. Each role needs to be defined at the Policy level
+and provided with a conditional method that determines whether the `@user`(`current_user` in the context of a Policy) 
+falls into this role. Additionally, each role can have a set of permitted 
+_**attributes**_ and _**associations**_(from here on collectively referred to as **_options_**) 
 defined for it. A basic example for a UserPolicy would be:
 ```ruby
 role :user, authorize_with: :logged_in_user
@@ -89,8 +94,8 @@ to a variable:
 ```ruby
 class UserController < ApplicationController
   def show
-    user = User.find(params[:id])
-    permitted = authorize user
+    @user = User.find(params[:id])
+    permitted = authorize @user
     # [...]
   end
 end
@@ -106,13 +111,13 @@ permitted[:associations][:show]
 permitted[:associations][:update]
 ```
 
-If the user does not fall into any roles permitted by a query, it will raise `Pundit::NotAuthorizedError`
+If the user does not fall into any roles permitted by a query, the `authorize` method will raise `Pundit::NotAuthorizedError`
 
-#### Defining roles
+### Defining roles
 
-Roles are defined with the `role` method. It receives the name of the role as it's first argument, and
-options as it's second. Required option is the `authorize_with` attribute, in which you pass the method
-which validates the role. Method must be passed as a symbol without the question mark, and declared
+Roles are defined with the `role` method. It receives the name of the role as it's first argument and the
+options for the role as it's second. The required option is the `authorize_with` attribute, which is the method
+that validates the role. The validation method must be passed as a symbol without the question mark, and declared
 as a method with a question mark.
 
 Currently there are no more options, but some, like database permissions, are planned for future updates.
@@ -121,17 +126,17 @@ Currently there are no more options, but some, like database permissions, are pl
 role :user, authorize_with: :logged_in_user
 
 def logged_in_user?
-  user.present?
+  @user.present?
 end
 ```
 
-#### Users with multiple roles
+### Users with multiple roles
 
-You may have noticed that in the first example, `correct_user` has fewer permitted options
-defined than `user`. That is because PunditRoles does not treat roles as exclusionary, instead it treats roles as, well, roles.
-Users may have one role, or they may have multiple roles within the context of the model they are trying to access.
-In the previous example, a `correct_user`, meaning a `user` trying to access it's own Model, is naturally 
-also a regular `user`, so it will have access to all options a regular `user` has access to, plus the 
+You may have noticed that in the first example `correct_user` has fewer permitted options
+defined than `user`. That is because PunditRoles does not treat roles as exclusionary.
+Users may have a single role or they may have multiple roles, within the context of the model they are trying to access.
+In the previous example, a `correct_user`, meaning a `user` trying to access it's own model, is naturally 
+also a regular `user`, so it will have access to all options a regular `user` has access to plus the 
 options that a `correct_user` has access to. 
 
 Take this example, to better illustrate what is happening: 
@@ -156,8 +161,8 @@ permitted_for :admin,
               }
 ```
 
-Here, a user which fulfills the `admin` condition, trying to access it's own Model, would receive the 
-options of all three roles, meaning the `show` attributes of the hash would look like: 
+Here, a user which fulfills the `admin` condition trying to access it's own model, would receive the 
+options of all three roles, meaning the `permitted[:attributes][:show]` would look like: 
 ```ruby
 [:username, :name, :avatar, :email, :phone_number, :is_admin]
 ```
@@ -168,18 +173,16 @@ and if they do, it will uniquely merge the options hashes of all of these.
 If the user is an `admin`, but is not a `correct_user`, it will not receive the `phone_number` attribute,
 because that is unique to `correct_user` and vice versa.
 
-At present, there is no way to prevent merging of roles. Such a feature may be coming in a 
-future update.
+At present, there is no way to prevent merging of roles. Such a feature may be coming in a future update.
 
-#### Inheritance and the default Guest role
+### Inheritance and the default Guest role
 
 One thing to watch out for is that roles are inherited but options are not.
-This means that you may declare commonly used roles, whose validations are 
-independent of the @record of the Policy, in the ApplicationPolicy, and may reuse them
-further down the line. You may also overwrite roles defined in a parent class. This will not
-affect the role in the parent.
+This means that you may declare commonly used roles(whose validations are 
+independent of the `@record` of the Policy) in the ApplicationPolicy, and may reuse them
+further down the line. You may also overwrite roles defined in a parent class(these will not affect those in the parent).
 
-It is important to declare the options with the `permitted_for` method for each role that you permit
+However, it is important to declare the options with the `permitted_for` method for each role that you permit
 in your Policy, otherwise the role will return an empty hash.
 
 With that in mind, PunditRoles comes with a default `:guest` role, which simply checks if
@@ -209,17 +212,18 @@ end
 * **Important!** The `:guest` role is exclusionary by default, meaning it cannot be merged
 with other roles. It is also the first role that is evaluated, and if the user is a `:guest`, it will return the guest
 attributes if `:guest` is allowed, or raise `PunditNotAuthorized` if not. 
-Do **NOT** overwrite the `:guest` role, that can lead to unexpected side effects. 
+Do **NOT** overwrite the `:guest` role, that can lead to unexpected side effects, and if you wish to allow guest, use
+the existing role and not a custom one. 
 
-#### Explicit declaration of options
+### Explicit declaration of options
 
 Options are declared with the `permitted_for` method, which receives the role as it's first argument,
 and the options as it's second.
 
 Valid options for the `permitted_for` method are `:attributes` and `:associations`. 
-Within these valid options are `:show`,`:create`,`:update` and `:save` or the implicit options.
+Within these, valid options are `:show`,`:create`,`:update` and `:save` or the implicit options.
 
-#### Implicit declaration of options
+### Implicit declaration of options
 
 PunditRoles provides a set of helpers to be able to implicitly declare the options of a role. 
 
@@ -227,61 +231,61 @@ PunditRoles provides a set of helpers to be able to implicitly declare the optio
  
 Although this is a possibility, it is _highly recommended_ that you explicitly declare 
 attributes for each role, to avoid any issues further in development, like say, an extra 
-attribute that is added to model later down the line. 
+attribute that is added to a model later down the line. 
 
 ---
 * **show_all**
 
-Will be able to view all non-restricted options.
-
-```ruby
-role :admin, authorize_with: :admin
-permitted_for :admin,
-              attributes: :show_all,
-              associations: :show_all
-```
+    Will be able to view all non-restricted options.
+    
+    ```ruby
+    role :admin, authorize_with: :admin
+    permitted_for :admin,
+                  attributes: :show_all,
+                  associations: :show_all
+    ```
 * **create_all, update_all, save_all**
 
-Will be able to create, update or save all non-restricted attributes. These options also
-imply that the role will be able to `show_all` options. 
-```ruby
-role :admin, authorize_with: :admin
-permitted_for :admin,
-              attributes: :save_all,
-              associations: :update_all
-```
+    Will be able to create, update or save all non-restricted attributes. These options also
+    imply that the role will be able to `show_all` options. 
+    ```ruby
+    role :admin, authorize_with: :admin
+    permitted_for :admin,
+                  attributes: :save_all,
+                  associations: :update_all
+    ```
 
 * **all**
 
-Declare on a per-action basis whether the role has access to all options. 
-```ruby
-role :admin, authorize_with: :admin
-permitted_for :admin,
-              attributes: {
-                show: :all,
-                save: %i(name username email)
-              },
-              associations: {
-                show: :all
-              }
-```
+    Declare on a per-action basis whether the role has access to all options. 
+    ```ruby
+    role :admin, authorize_with: :admin
+    permitted_for :admin,
+                  attributes: {
+                    show: :all,
+                    save: %i(name username email)
+                  },
+                  associations: {
+                    show: :all
+                  }
+    ```
 
 * **all_minus**
 
-Can be used to allow all attributes, except those declared. 
-```ruby
-role :admin, authorize_with: :admin
-permitted_for :admin,
-              attributes: {
-                show: [:all_minus, :password_digest]
-              }
-```
-The `:admin` role will now be able to view all attributes, except `password_digest`.
+    Can be used to allow all attributes, except those declared. 
+    ```ruby
+    role :admin, authorize_with: :admin
+    permitted_for :admin,
+                  attributes: {
+                    show: [:all_minus, :password_digest]
+                  }
+    ```
+    The `:admin` role will now be able to view all attributes, except `password_digest`.
 
-#### Restricted options
+### Restricted options
 
 PunditRoles allows you to define restricted options which will be removed when declaring 
-implicitly. By default, only the `:id, :created_at, :updated_at` attributes are restricted
+implicitly. By default, only the `:id`, `:created_at`, `:updated_at` attributes are restricted
 for `create`,`update` and `save` actions. You may overwrite this behaviour on a per-policy basis: 
 ```ruby
 private
@@ -292,6 +296,8 @@ end
 ```
 Or if you want to add to it, instead of overwriting, use `super`:
 ```ruby
+private
+
 def restricted_create_attributes
   super + [:attr_one, :attr_two]
 end
@@ -300,7 +306,7 @@ end
 There are 8 `restricted_#{action}_#{option_type}` methods in total, where `option_type` refers
 to either `attributes` or `associations` and `action` refers to `show`, `create`, `update` or `save`.
 
-#### Planned updates
+## Planned updates
 
 Support for Pundit's scope method should be added in the near future, along with authorizing associations, 
 generators, and rspec helpers. And once the test suite is finished for this gem, it should be production
