@@ -18,7 +18,7 @@ module PunditOverwrite
     permitted_records = policy.resolve_query(query)
 
     unless permitted_records
-      raise NotAuthorizedError, query: query, record: record, policy: policy
+      raise Pundit::NotAuthorizedError, query: query, record: record, policy: policy
     end
 
     if permitted_records.is_a? TrueClass
