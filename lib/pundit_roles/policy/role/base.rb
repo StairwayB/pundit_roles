@@ -90,7 +90,7 @@ module Role
         end
       end
 
-      return remove_restricted(parsed_options, type)
+      return parsed_options
     end
 
     # Build hash of options when options are implicitly declared as a Symbol, ex: :show_all
