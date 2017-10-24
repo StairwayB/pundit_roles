@@ -4,7 +4,7 @@ PunditRoles is a helper gem which works on top of [Pundit](https://github.com/el
 (if you are not familiar with Pundit, it is recommended you read it's documentation before continuing).
 It allows you to extend Pundit's authorization system to include attributes and associations.
 
-If you are already using Pundit, no need to worry, this gem should not conflict 
+If you are already using Pundit, this gem should not conflict 
 with any of Pundit's existing functionality. You may use Pundit's features as well as
 the features from this gem interchangeably. 
 
@@ -93,15 +93,15 @@ to a variable:
 ```ruby
 class UserController < ApplicationController
   def show
-    @user = User.find(params[:id])
-    permitted = authorize @user
+    user = User.find(params[:id])
+    permitted = authorize user
     # [...]
   end
 end
 ```
 
 The `authorize` method will return a hash of permitted attributes and associations for the corresponding action that the
-@user has access to. What you do with that is your business. Accessors for each segment look like this: 
+user has access to. What you do with that is your business. Accessors for each segment look like this: 
 ```ruby
 permitted[:attributes][:show]
 permitted[:attributes][:create]
@@ -125,7 +125,7 @@ Currently there are no more options, but some, like database permissions, are pl
 role :user, authorize_with: :logged_in_user
 
 def logged_in_user?
-  @user.present?
+  user.present?
 end
 ```
 
@@ -165,8 +165,8 @@ options of all three roles, meaning the `show` attributes of the hash would look
 ```ruby
 [:username, :name, :avatar, :email, :phone_number, :is_admin]
 ```
-Notice that there are no duplicates. This is because whenever a @user tries to access an action, 
-PunditRoles will evaluate whether the @user falls into the roles permitted to perform said action, 
+Notice that there are no duplicates. This is because whenever a user tries to access an action, 
+PunditRoles will evaluate whether the user falls into the roles permitted to perform said action, 
 and if they do, it will uniquely merge the options hashes of all of these.
 
 If the user is an `admin`, but is not a `correct_user`, it will not receive the `phone_number` attribute,
@@ -187,7 +187,7 @@ It is important to declare the options with the `permitted_for` method for each 
 in your Policy, otherwise the role will return an empty hash.
 
 With that in mind, PunditRoles comes with a default `:guest` role, which simply checks if
-the @user is nil. If you wish to permit guest users for a particular action, simply define the
+the user is nil. If you wish to permit guest users for a particular action, simply define the
 options for it and allow it in your query method. 
 
 ```ruby
@@ -211,7 +211,7 @@ end
 ```
 
 * **Important!** The `:guest` role is exclusionary by default, meaning it cannot be merged
-with other roles. It is also the first role that is evaluated, and if the @user is a `:guest`, it will return the guest
+with other roles. It is also the first role that is evaluated, and if the user is a `:guest`, it will return the guest
 attributes if `:guest` is allowed, or raise `PunditNotAuthorized` if not. 
 Do **NOT** overwrite the `:guest` role, that can lead to unexpected side effects. 
 
