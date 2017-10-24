@@ -4,13 +4,12 @@ PunditRoles is a helper gem which works on top of [Pundit](https://github.com/el
 (if you are not familiar with Pundit, it is recommended you read it's documentation before continuing).
 It allows you to extend Pundit's authorization system to include attributes and associations.
 
-If you are already using Pundit, this gem should not conflict 
-with any of Pundit's existing functionality. You may use Pundit's features as well as
-the features from this gem interchangeably. 
+If you are already using Pundit, this should not conflict with any of Pundit's existing functionality. 
+You may use Pundit's features as well as the features from this gem interchangeably.
 
 Please note that this gem is not affiliated with Pundit or it's creators, but it very much
-appreciates the work that they did with their amazing gem. Also note that this gem is early
-in it's development and is **not** considered production ready!
+appreciates the work that they did with their great authorization system. Also note that this is still early
+in it's development and is **NOT** considered production ready!
 
 ## Installation
 
@@ -67,9 +66,6 @@ permitted_for :correct_user,
 
 This assumes that there are two methods defined in the UserPolicy called `logged_in_user?` and
 `correct_user?`. More on that later. 
-
-* (_If someone is confused by the `%i(attr_one attr_two)`, 
-it is simply shorthand for `[:attr_one, :attr_two]`_)
 
 And then in you query method, you simply say:
 ```ruby
@@ -228,9 +224,11 @@ Within these valid options are `:show`,`:create`,`:update` and `:save` or the im
 PunditRoles provides a set of helpers to be able to implicitly declare the options of a role. 
 
  ---
+ 
 Although this is a possibility, it is _highly recommended_ that you explicitly declare 
 attributes for each role, to avoid any issues further in development, like say, an extra 
 attribute that is added to model later down the line. 
+
 ---
 * **show_all**
 
@@ -304,8 +302,8 @@ to either `attributes` or `associations` and `action` refers to `show`, `create`
 
 #### Planned updates
 
-Support for Pundit's scope method should be added in the near future, along with generators,
-and rspec helpers. And once the test suite is finished for this gem, it should be production
+Support for Pundit's scope method should be added in the near future, along with authorizing associations, 
+generators, and rspec helpers. And once the test suite is finished for this gem, it should be production
 ready. 
 
 ## Development
@@ -316,8 +314,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports are welcome on GitHub at [StairwayB](https://github.com/StairwayB/pundit_roles). If you wish to collaborate, send
-your Github username to danielferencbalogh@gmail.com
+Bug reports are welcome on GitHub at [StairwayB](https://github.com/StairwayB/pundit_roles).
 
 
 ## License
