@@ -1,5 +1,8 @@
-sudo: false
 language: ruby
+cache: bundler
+
 rvm:
   - 2.4.0
 before_install: gem install bundler -v 1.14.6
+
+script: 'bundle exec rake'

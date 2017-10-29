@@ -8,6 +8,7 @@ require 'pundit_roles/pundit'
 require 'pundit_roles/policy/base'
 require 'pundit'
 
+# Enhances Pundit with roles, allows definition of attribute and association level authorization
 module PunditRoles
   include Pundit
 end
