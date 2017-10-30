@@ -9,8 +9,8 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Daniel Balogh"]
   spec.email         = ["danielferencbalogh@gmail.com"]
 
-  spec.summary       = %q{Extends Pundit with roles, which allow attribute and association level authorizations}
-  spec.description   = %q{Extends Pundit with roles}
+  spec.summary       = %q{Extends Pundit with roles, allowing attribute and association level authorizations}
+  spec.description   = %q{Extends Pundit with roles, allowing attribute and association level authorizations}
   spec.homepage      = "https://github.com/StairwayB/pundit_roles"
   spec.license       = "MIT"
 
