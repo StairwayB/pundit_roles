@@ -1,7 +1,9 @@
 # PunditRoles
 
 [![Gem Version](https://badge.fury.io/rb/pundit_roles.svg)](https://badge.fury.io/rb/pundit_roles.svg)
-
+[![Build Status](https://travis-ci.org/StairwayB/pundit_roles.svg?branch=master)](https://travis-ci.org/StairwayB/pundit_roles)
+[![Coverage Status](https://coveralls.io/repos/github/StairwayB/pundit_roles/badge.svg?branch=master)](https://coveralls.io/github/StairwayB/pundit_roles?branch=master)
+[![Maintainability](https://api.codeclimate.com/v1/badges/030ffce3612160c8e7f0/maintainability)](https://codeclimate.com/github/StairwayB/pundit_roles/maintainability)
 
 PunditRoles is a helper gem which works on top of [Pundit](https://github.com/elabs/pundit)
 (if you are not familiar with Pundit, it is recommended you read it's documentation before continuing).
@@ -13,7 +15,9 @@ You may use Pundit's features as well as the features from this gem interchangea
 Please note that this gem is not affiliated with Pundit or it's creators, but it very much
 appreciates the work that they did with their great authorization system. 
 
-* **Important** This gem is **not** yet considered production ready. 
+* **Important**: This gem is **not** yet considered production ready.
+
+* [**_Changelog_**](https://github.com/StairwayB/pundit_roles/blob/master/CHANGELOG.md)
 
 ## Installation
 
