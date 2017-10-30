@@ -8,10 +8,9 @@ gem 'activemodel'
 gem 'pundit', '~> 1.1.0'
 
 group :development, :test do
-  gem "actionpack"
-  gem "activemodel"
   gem "bundler"
   gem "pry"
   gem "rake"
   gem "rspec"
+  gem 'coveralls', require: false
 end
