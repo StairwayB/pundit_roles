@@ -136,7 +136,7 @@ role :correct_user,
 
 private
 
-def regular_user?
+def correct_user?
   @user.id == @resource.id
 end
 ```
