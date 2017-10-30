@@ -11,6 +11,7 @@ It allows you to extend Pundit's authorization system to include attributes and 
 
 If you are already using Pundit, this should not conflict with any of Pundit's existing functionality. 
 You may use Pundit's features as well as the features from this gem interchangeably.
+(the only exception here, is that Pundit's @record has been renamed to @resource)
 
 Please note that this gem is not affiliated with Pundit or it's creators, but it very much
 appreciates the work that they did with their great authorization system. 
@@ -129,14 +130,14 @@ but all of these will have identical options, so what's the point, really). Vali
 Currently only attributes and associations are supported, scopes and db permissions will be coming Soon&trade;.
 
 ```ruby
-role :regular_user,
+role :correct_user,
       attributes: {show: [:name]},
       associations: {show: [:posts]}
 
 private
 
 def regular_user?
-  @user.present?
+  @user.id == @resource.id
 end
 ```
 
