@@ -152,3 +152,61 @@ class RestrictedUserPolicy < Policy::Base
     @user.present?
   end
 end
+
+class ScopedUser < User
+  def guest_user
+    :guest_user
+  end
+
+  def some_user
+    :some_user
+  end
+
+  def regular_user
+    [:returns, :many, :things]
+  end
+
+end
+
+class ScopedUserPolicy < Policy::Base
+
+  role :guest, scope: lambda{resource.guest_user}
+  role :some_role, scope: lambda{resource.some_user},
+        attributes:{
+          show: %i(username)
+        }
+  role :some_extra_role, scope: lambda{resource.regular_user},
+        attributes:{
+         show: %i(email)
+        }
+  role :regular_user, scope: lambda{resource.regular_user}
+  role :not_allowed, scope: lambda{resource.guest_user}
+
+  def index?
+    allow :some_role, :regular_user, :some_extra_role
+  end
+
+  def allows_guest?
+    allow :guest, :regular_user
+  end
+
+  def doesnt_allow_guest?
+    allow :regular_user
+  end
+
+  def some_role?
+    @resource.id == 3
+  end
+
+  def some_extra_role?
+    @resource.id == 3
+  end
+
+  def regular_user?
+    @resource.id == 2
+  end
+
+  def not_allowed?
+    @resource.id == 4
+  end
+end
