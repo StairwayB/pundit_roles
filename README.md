@@ -103,7 +103,9 @@ end
 ```
 
 The `authorize!` method will return a hash of permitted attributes and associations for the corresponding action that the
-user has access to. What you do with that is your business. Accessors for each segment look like this: 
+user has access to. What you do with that is your business. You may pass this hash to a serializer to limit what attributes
+are returned, or use it to sanitize create and update parameters. See the [Strong params](#strong-params) section.
+Accessors for each segment look like this: 
 ```ruby
 permitted[:attributes][:show] # ex. returns => [:username, :name, :avatar, :is_confirmed, :created_at]
 permitted[:attributes][:create] # ex. returns => [:username, :email, :password, :password_confirmation]
@@ -117,10 +119,8 @@ The hash also contains the roles that the user has fulfilled:
 permitted[:roles] # ex. returns => [:regular_user, :correct_user]
 ```
 
-If the user does not fall into any roles permitted by a query, the `authorize` method will raise `Pundit::NotAuthorizedError`
-
-You may pass this hash to a serializer to limit what attributes are returned, or use it to sanitize 
-create and update parameters. See the [Strong params](#strong-params) section. 
+If the user does not fall into any roles permitted by a query, the `authorize` method will raise
+`Pundit::NotAuthorizedError`
 
 ### Defining roles
 
@@ -272,9 +272,10 @@ end
 
 #### Important: Scope declaration order
 
-While attributes and associations for roles are merged, scopes are **not**! This means that whenever you wish to authorize a list of records,
-you must take care in what order you define the roles. PunditRoles will go over the allowed roles in a query method in the
-order in which they were defined, and when it finds a role that the user fulfills, it will return the scope for that role.
+While attributes and associations for roles are merged, scopes are **not**! This means that whenever you wish to authorize a 
+list of records,you must take care in what order you define the roles. PunditRoles will go over the allowed roles in a query 
+method in the order in which they were defined, and when it finds a role that the user fulfills, 
+it will return the scope for that role.
 
 Take this example, where there are two roles permitted for an `index` action: `regular_user` and `:admin_user`:
 ```ruby
@@ -299,8 +300,8 @@ end
 
 Whenever an admin tries to access the `index` action, PunditRoles will first check if the admin is a `regular_user`,
 which will be true, since admin is in fact logged in. Therefore, it will return the scope defined for `regular_user`,
-instead of the scope defined for `admin_user`. This is not the desired behaviour. In order to avoid this, the `index?` method
-needs to look like this:
+instead of the scope defined for `admin_user`. This is not the desired behaviour. In order to avoid this, the `index?` 
+method needs to look like this:
 ```ruby
 def index?
   allow :admin_user, :regular_user
@@ -316,12 +317,13 @@ does not matter. The guest role can be declared wherever, since PunditRoles will
 
 ### Strong params
 PunditRoles makes it easy to handle role-based strong params. Simply pass the `[:create]`, `[:update]` or `[:save]` 
-attribute of the `[:attributes]` attribute of the hash returned by the `authorize!` method to the params sanitizer.
+attribute of the `[:attributes]` attribute of the hash returned by the `authorize!` method to the params sanitizer
+(that's a mouthful).
 ```ruby
 def create
   permitted = authorize! User
   @user = User.new(create_params(permitted[:attributes][:create]))
-  if user.save!
+  if @user.save!
     render jsonapi: @user, fields: {users: permitted[:attributes][:show]}
   end
 end
