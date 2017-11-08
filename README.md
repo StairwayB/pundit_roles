@@ -1,6 +1,6 @@
 # PunditRoles
 
-[![Gem Version](https://badge.fury.io/rb/pundit_roles.svg)](https://badge.fury.io/rb/pundit_roles.svg)
+[![Gem Version](https://badge.fury.io/rb/pundit_roles.svg)](https://rubygems.org/gems/pundit_roles)
 [![Build Status](https://travis-ci.org/StairwayB/pundit_roles.svg?branch=master)](https://travis-ci.org/StairwayB/pundit_roles)
 [![Coverage Status](https://coveralls.io/repos/github/StairwayB/pundit_roles/badge.svg?branch=master)](https://coveralls.io/github/StairwayB/pundit_roles?branch=master)
 [![Maintainability](https://api.codeclimate.com/v1/badges/030ffce3612160c8e7f0/maintainability)](https://codeclimate.com/github/StairwayB/pundit_roles/maintainability)
