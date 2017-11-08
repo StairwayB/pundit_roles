@@ -12,7 +12,7 @@ helpers for convenience.
 
 If you are already using Pundit, this should not conflict with any of Pundit's existing functionality. 
 You may use Pundit's features as well as the features from this gem interchangeably. There are
-some caveats however, see the [Porting over from Pundit](#Porting over from Pundit).
+some caveats however, see the [Porting over from Pundit](#Porting-over-from-Pundit).
 
 Please note that this gem is not affiliated with Pundit or it's creators, but it very much
 appreciates the work that they did with their great authorization system.
@@ -147,7 +147,7 @@ But since the name of the role is just the conditional method for the role,
 without the '?' question mark, it is encouraged to inherit from an `ApplicationPolicy`, 
 and define common `role` conditionals there. 
 
-* see [Declaring attributes and associations](#Declaring attributes and associations) for how to declare 
+* see [Declaring attributes and associations](#Declaring-attributes-and-associations) for how to declare 
 attributes and associations.
 
 ### Users with multiple roles
