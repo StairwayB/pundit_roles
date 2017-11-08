@@ -8,7 +8,7 @@
 - Roles can no longer be inherited from the superclass.
 - Test conditions for the roles are now guessed from the name of the role, 
   instead of being declared explicitly with the `authorize_with` option.
-- Policy instance variable @record renamed @resource
+- Policy instance variable `@record` renamed `@resource`
 
 ## 0.5.0 (2017-11-08)
 
