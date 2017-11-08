@@ -34,7 +34,7 @@ module Policy
         return handle_guest_options(permitted_roles, permissions)
       end
 
-      current_roles = determine_current_roles!(permitted_roles)
+      current_roles = determine_current_roles(permitted_roles)
       return false unless current_roles.present?
 
       return options_or_merge(current_roles, permissions)
@@ -55,7 +55,7 @@ module Policy
         return handle_guest_scope(permitted_roles, scopes)
       end
 
-      current_roles =  determine_current_roles!(permitted_roles)
+      current_roles =  determine_current_roles(permitted_roles)
       return false unless current_roles.present?
 
       return instance_eval &scopes[current_roles[0]]
@@ -98,7 +98,7 @@ module Policy
     # Build an Array of the roles that the user fulfills.
     #
     # @param permitted_roles [Hash] roles returned by the query
-    def determine_current_roles!(permitted_roles)
+    def determine_current_roles(permitted_roles)
       current_roles = []
 
       permitted_roles.each do |permitted_role|
