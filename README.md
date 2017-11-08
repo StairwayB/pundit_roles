@@ -53,7 +53,8 @@ class UserPolicy < ApplicationPolicy
        },
        associations: {
          show: %i(posts followers following)
-       }
+       },
+       scope: lambda{resource.regular_user_scope}
 
   role :correct_user,
        attributes: {
@@ -77,8 +78,9 @@ class UserPolicy < ApplicationPolicy
 end
 ```
 
-This assumes that there are two methods defined in the UserPolicy called `regular_user?` and
-`correct_user?`. More on that in the [Defining roles](#defining-roles) section.
+* This assumes that there are two methods defined in the UserPolicy called `regular_user?` and
+`correct_user?`. More on that in the [Defining roles](#defining-roles) section. 
+* How scopes work can be found in the [Scopes](#scopes) section. 
 
 Then in your controller you call the `authorize!` method and pass it's return value to a variable: 
 ```ruby
