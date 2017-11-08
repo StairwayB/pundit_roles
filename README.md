@@ -119,6 +119,9 @@ permitted[:roles] # ex. returns => [:regular_user, :correct_user]
 
 If the user does not fall into any roles permitted by a query, the `authorize` method will raise `Pundit::NotAuthorizedError`
 
+You may pass this hash to a serializer to limit what attributes are returned, or use it to sanitize 
+create and update parameters. See the [Strong params](#strong-params) section. 
+
 ### Defining roles
 
 Roles are defined with the `role` method. It receives the name of the role as it's first argument and the
@@ -310,6 +313,25 @@ In this case, `admin_user` is evaluated before `regular_user`, so admins will co
 meaning that there is no way that a user can fulfill more than one of these roles, then the order in which they are declared
 does not matter. The guest role can be declared wherever, since PunditRoles will always evaluate whether the user is a 
 `guest` first. 
+
+### Strong params
+PunditRoles makes it easy to handle role-based strong params. Simply pass the `[:create]`, `[:update]` or `[:save]` 
+attribute of the `[:attributes]` attribute of the hash returned by the `authorize!` method to the params sanitizer.
+```ruby
+def create
+  permitted = authorize! User
+  @user = User.new(create_params(permitted[:attributes][:create]))
+  if user.save!
+    render jsonapi: @user, fields: {users: permitted[:attributes][:show]}
+  end
+end
+
+private
+  
+def create_params(permitted_params)
+  params.require(:users).permit(permitted_params)
+end
+```
 
 ### Declaring attributes and associations
 
