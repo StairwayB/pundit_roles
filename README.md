@@ -98,7 +98,7 @@ end
 
 The `authorize!` method will return a hash of permitted attributes and associations for the corresponding action that the
 user has access to. What you do with that is your business. You may pass this hash to a serializer to limit what attributes
-are returned, or use it to sanitize create and update parameters. See the [Strong params](#strong-params) section.
+are returned, or use it to sanitize create and update parameters(see the [Strong params](#strong-params) section).
 Accessors for each segment look like this: 
 ```ruby
 permitted[:attributes][:show] # ex. returns => [:username, :name, :avatar, :is_confirmed, :created_at]
