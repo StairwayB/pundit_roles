@@ -43,8 +43,8 @@ end
 
 PunditRoles operates around the notion of _**roles**_. Each role needs to be defined at the Policy level
 and provided with a conditional method that determines whether the `@user`(the `current_user` in the context of a Policy) 
-falls into this role. Additionally, each role can have a set of permitted 
-_**attributes**_ and _**associations**_ defined for it. A basic example for a UserPolicy would be:
+falls into this role. Additionally, each role can have a set of options defined for it(like _attributes_,
+_associations_ and _scope_). A basic example for a UserPolicy would be:
 ```ruby
 class UserPolicy < ApplicationPolicy
   role :regular_user,
@@ -55,43 +55,32 @@ class UserPolicy < ApplicationPolicy
          show: %i(posts followers following)
        }
 
-role :correct_user,
+  role :correct_user,
        attributes: {
-         show: %i(email phone_number confirmed_at updated_at sign_in_count),
+         show: %i(email phone_number confirmed_at updated_at),
          update: %i(username email password password_confirmation current_password name avatar)
        },
        associations: {
          show: %i(settings),
          save: %i(settings)
        }
+  
+  # in the query methods, you define the roles which are allowed for the particular action
+  def show?
+    %i(regular_user correct_user)
+  end
+
+  # or with the allow helper method:
+  def update?
+    allow :correct_user, :some_other_role
+  end
 end
 ```
 
 This assumes that there are two methods defined in the UserPolicy called `regular_user?` and
-`correct_user?`.
+`correct_user?`. More on that in the [Defining roles](#defining-roles) section.
 
-* Please note, that there were a couple of breaking change since `0.2.1`. View the 
-[changelog](https://github.com/StairwayB/pundit_roles/blob/master/CHANGELOG.md) for additional details.
-
-And then in you query method, you simply say:
-```ruby
-def show?
-  %i(user correct_user)
-end
-
-def update?
-  %i(correct_user)
-end
-```
-Or you may use the `allow` helper method:
-```ruby
-def show?
-  allow :user, :correct_user
-end
-```
-
-Finally, in your controller you call `authorize!` method and pass it's return value
-to a variable: 
+Then in your controller you call the `authorize!` method and pass it's return value to a variable: 
 ```ruby
 class UserController < ApplicationController
   def show
@@ -101,6 +90,9 @@ class UserController < ApplicationController
   end
 end
 ```
+
+* Please note, that there were a couple of breaking change since `0.2.1`. View the 
+[changelog](https://github.com/StairwayB/pundit_roles/blob/master/CHANGELOG.md) for additional details.
 
 The `authorize!` method will return a hash of permitted attributes and associations for the corresponding action that the
 user has access to. What you do with that is your business. You may pass this hash to a serializer to limit what attributes
@@ -119,7 +111,7 @@ The hash also contains the roles that the user has fulfilled:
 permitted[:roles] # ex. returns => [:regular_user, :correct_user]
 ```
 
-If the user does not fall into any roles permitted by a query, the `authorize` method will raise
+If the user does not fall into any roles permitted by a query, the `authorize!` method will raise
 `Pundit::NotAuthorizedError`
 
 ### Defining roles
@@ -138,10 +130,19 @@ role :correct_user,
       attributes: {show: [:name]},
       associations: {show: [:posts]}
 
+role :admin_user
+      attributes: {show: [:name]},
+      associations: {show: [:posts]},
+      scope: lambda{resource.admin_scope}
+
 private
 
 def correct_user?
   @user.id == @resource.id
+end
+
+def admin_user?
+  @user.admin?
 end
 ```
 
@@ -239,6 +240,7 @@ role :guest,
     },
     associations: {},
     scope: lambda{resource.where(visible_publicly: true)}
+
 role :regular_user,
    attributes: {
      show: %i(username name avatar)
