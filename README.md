@@ -315,13 +315,13 @@ does not matter. The guest role can be declared wherever, since PunditRoles will
 
 * Attributes and associations in this heading are referred to collectively as _options_
 
-##### Explicit declaration of options
+#### Explicit declaration of options
 
 Options are declared with the `attributes` and `associations` options of the role method.
 
 Valid options for both `:attributes` and `:associations` are `:show`,`:create`,`:update` and `:save` or the implicit options.
 
-##### Implicit declaration of options
+#### Implicit declaration of options
 
 PunditRoles provides a set of helpers to be able to implicitly declare the options of a role. 
 
