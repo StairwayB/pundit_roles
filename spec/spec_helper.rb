@@ -1,6 +1,9 @@
 require 'coveralls'
 Coveralls.wear!
 
+# require 'simplecov'
+# SimpleCov.start
+
 require 'bundler/setup'
 Bundler.setup
 
@@ -194,6 +197,12 @@ class ScopedUserPolicy < Policy::Base
     allow :regular_user
   end
 
+  def boolean_permission?
+    true
+  end
+
+  private
+
   def some_role?
     @resource.id == 3
   end
@@ -209,4 +218,118 @@ class ScopedUserPolicy < Policy::Base
   def not_allowed?
     @resource.id == 4
   end
+end
+
+class AssociationPermission < User
+  def self.reflect_on_all_associations
+    [OpenStruct.new(:name => :assoc, :class_name => 'AssociatedPermission'),
+     OpenStruct.new(:name => :show, :class_name => 'AssociatedPermission'),
+     OpenStruct.new(:name => :create, :class_name => 'AssociatedPermission'),
+     OpenStruct.new(:name => :update, :class_name => 'AssociatedPermission'),
+     OpenStruct.new(:name => :save, :class_name => 'AssociatedPermission')]
+  end
+end
+
+class AssociationPermissionPolicy < Policy::Base
+  role :regular_user,
+       attributes: {show: [:base]},
+       associations: {show: [:associated_permission]},
+       associated_as: {:associated_permission => [:regular_user]}
+
+  role :nested_user,
+       attributes: {show: [:base]},
+       associations: {show: [:associated_permission]},
+       associated_as: {:associated_permission => [:nested_user_one]}
+
+  role :aliased_assoc,
+       attributes: {show: [:base]},
+       associations: {show: [:assoc]},
+       associated_as: {:assoc => [:nested_user_two]}
+
+  role :test_helper,
+       attributes: {
+         show: [:show],
+         create: [:create],
+         update: [:update],
+         save: [:save]
+       },
+       associations: {
+         show: [:show],
+         create: [:create],
+         update: [:update],
+         save: [:save]
+       },
+       associated_as: {:show => [:test_helper], :create => [:test_helper], :update => [:test_helper], :save => [:test_helper]}
+
+  def basic_assoc_validation?
+    allow :regular_user, :test_helper
+  end
+
+  def nested_assoc_validation?
+    allow :nested_user
+  end
+
+  def aliased_validation?
+    allow :aliased_assoc
+  end
+
+  private
+
+  def regular_user?
+    @resource.id == 2
+  end
+
+  def nested_user?
+    @resource.id == 3
+  end
+
+  def aliased_assoc?
+    @resource.id == 4
+  end
+
+  def test_helper?
+    @resource.id == 5
+  end
+end
+
+class AssociatedPermission < AssociationPermission
+
+end
+
+class AssociatedPermissionPolicy < Policy::Base
+  role :regular_user,
+       attributes: {show: [:assoc]}
+
+  role :nested_user_one,
+       attributes: {show: [:assoc]},
+       associations: {show: [:nested_permission]},
+       associated_as: {:nested_permission => [:regular_user]}
+
+  role :nested_user_two,
+       attributes: {show: [:assoc]},
+       associations: {show: [:nested_permission]},
+       associated_as: {:nested_permission => [:regular_user, :other_user]}
+
+  role :test_helper,
+       attributes: {
+         show: [:show],
+         create: [:create],
+         update: [:update],
+         save: [:save]
+       },
+       associations: {
+         show: [:show],
+         create: [:create],
+         update: [:update],
+         save: [:save]
+       }
+end
+
+class NestedPermission < AssociationPermission; end
+
+class NestedPermissionPolicy < Policy::Base
+  role :regular_user,
+       attributes: {show: [:nested]}
+  role :other_user,
+       attributes: {show: [:other_nested]}
 end
