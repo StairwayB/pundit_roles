@@ -5,10 +5,10 @@ require_relative 'policy_defaults'
 module Policy
 
   # Base policy class to be extended by all other policies, authorizes users based on roles they fall into,
-  # return a uniquely merged hash of permitted attributes and associations of each role the @user has.
+  # Can be used to get the attributes or scope of roles.
   #
   # @attr_reader user [Object] the user that initiated the action
-  # @attr_reader resource [Object] the object we're checking permissions of
+  # @attr_reader resource [Object] the object we're checking @permissions of
   class Base
     extend Role
     include PolicyDefaults
@@ -17,10 +17,11 @@ module Policy
     def initialize(user, resource)
       @user = user
       @resource = resource
+      freeze
     end
 
     # Retrieves the permitted roles for the current query, checks if user is one or more of these roles
-    # and return a hash of attributes and associations that the user has access to.
+    # and return a hash of attributes that the user has access to.
     #
     # @param query [Symbol, String] the predicate method to check on the policy (e.g. `:show?`)
     def resolve_query(query)
@@ -61,6 +62,15 @@ module Policy
       return instance_eval &scopes[current_roles[0]]
     end
 
+    def resolve_as_association(roles, actions)
+      role_associations = self.class.role_associations
+      permissions = self.class.permissions
+
+      current_roles = determine_aliased_as_roles(roles, role_associations)
+
+      return options_or_merge(current_roles, permissions, actions)
+    end
+
     private
 
     # Return the default :guest role if guest is present in permitted_roles. Return false otherwise
@@ -85,14 +95,38 @@ module Policy
     #
     # @param current_roles [Hash] roles that the current user fulfills
     # @param permissions [Hash] unrefined hash of options defined by all permitted_for methods
-    def options_or_merge(current_roles, permissions)
+    def options_or_merge(current_roles, permissions, actions = [:show, :create, :update, :save])
       return false unless current_roles.present?
 
       if current_roles.length == 1
         return permissions[current_roles[0]].merge({roles: [current_roles[0]]})
       end
 
-      return unique_merge(current_roles, permissions)
+      return unique_merge(current_roles, permissions, actions)
+    end
+
+    # Uniquely merge the options of all roles that the user fulfills
+    # Returns only the action(i.e. show, create) that was requested, by default this is all actions
+    #
+    # @param roles [Hash] roles that the user fulfills
+    # @param permissions [Hash] the options for all roles
+    # @param requested_actions [Array] the requested actions
+    def unique_merge(roles, permissions, requested_actions)
+      merged_hash = {attributes: {}, associations: {}, roles: roles}
+
+      roles.each do |role|
+        permissions[role].each do |type, permitted_actions|
+          actions = permitted_actions.slice(*requested_actions)
+          actions.each do |key, value|
+            unless merged_hash[type][key]
+              merged_hash[type][key] = []
+            end
+            merged_hash[type][key] |= value
+          end
+        end
+      end
+
+      return merged_hash
     end
 
     # Build an Array of the roles that the user fulfills.
@@ -114,25 +148,18 @@ module Policy
       return current_roles
     end
 
-    # Uniquely merge the options of all roles that the user fulfills
-    #
-    # @param roles [Hash] roles that the user fulfills
-    # @param permissions [Hash] the options for all roles
-    def unique_merge(roles, permissions)
-      merged_hash = {attributes: {}, associations: {}, roles: roles}
+    def determine_aliased_as_roles(roles, class_roles)
+      aliased_roles = Set.new
 
       roles.each do |role|
-        permissions[role].each do |type, actions|
-          actions.each do |key, value|
-            unless merged_hash[type][key]
-              merged_hash[type][key] = []
-            end
-            merged_hash[type][key] |= value
+        class_roles.each do |key, value|
+          if value == role
+            aliased_roles.add(key)
           end
         end
       end
 
-      return merged_hash
+      return aliased_roles.to_a
     end
 
     # Helper method for testing the conditional of a role
