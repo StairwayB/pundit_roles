@@ -63,12 +63,8 @@ module Policy
     end
 
     def resolve_as_association(roles, actions)
-      role_associations = self.class.role_associations
       permissions = self.class.permissions
-
-      current_roles = determine_aliased_as_roles(roles, role_associations)
-
-      return options_or_merge(current_roles, permissions, actions)
+      return options_or_merge(roles, permissions, actions)
     end
 
     private
@@ -112,9 +108,11 @@ module Policy
     # @param permissions [Hash] the options for all roles
     # @param requested_actions [Array] the requested actions
     def unique_merge(roles, permissions, requested_actions)
-      merged_hash = {attributes: {}, associations: {}, roles: roles}
+      merged_hash = {attributes: {}, associations: {}, roles: {for_current_model: [], for_associated_models: {}}}
 
       roles.each do |role|
+        merged_hash[:roles][:for_current_model] |= [role]
+        merged_hash[:roles][:for_associated_models] = merge_associated_roles(role, merged_hash[:roles][:for_associated_models])
         permissions[role].each do |type, permitted_actions|
           actions = permitted_actions.slice(*requested_actions)
           actions.each do |key, value|
@@ -127,6 +125,17 @@ module Policy
       end
 
       return merged_hash
+    end
+
+    def merge_associated_roles(role, merged_opts)
+      associated_roles = self.class.role_associations
+
+      associated_roles[role].each do |k, v|
+        assoc_role = {k => v}
+        merged_opts = merged_opts.merge(assoc_role){ | key, old, new | old | new}
+      end
+
+      return associated_roles
     end
 
     # Build an Array of the roles that the user fulfills.
@@ -146,20 +155,6 @@ module Policy
       end
 
       return current_roles
-    end
-
-    def determine_aliased_as_roles(roles, class_roles)
-      aliased_roles = Set.new
-
-      roles.each do |role|
-        class_roles.each do |key, value|
-          if value == role
-            aliased_roles.add(key)
-          end
-        end
-      end
-
-      return aliased_roles.to_a
     end
 
     # Helper method for testing the conditional of a role
