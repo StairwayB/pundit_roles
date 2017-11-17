@@ -38,7 +38,7 @@ module Policy
       current_roles = determine_current_roles(permitted_roles)
       return false unless current_roles.present?
 
-      return options_or_merge(current_roles, permissions)
+      return unique_merge(current_roles, permissions)
     end
 
     # Retrieves the permitted roles for the current query and checks each role, until it finds one that
@@ -63,12 +63,8 @@ module Policy
     end
 
     def resolve_as_association(roles, actions)
-      role_associations = self.class.role_associations
       permissions = self.class.permissions
-
-      current_roles = determine_aliased_as_roles(roles, role_associations)
-
-      return options_or_merge(current_roles, permissions, actions)
+      return unique_merge(roles, permissions, actions)
     end
 
     private
@@ -91,30 +87,19 @@ module Policy
       return false
     end
 
-    # inspects the current_roles and returns the appropriate option
-    #
-    # @param current_roles [Hash] roles that the current user fulfills
-    # @param permissions [Hash] unrefined hash of options defined by all permitted_for methods
-    def options_or_merge(current_roles, permissions, actions = [:show, :create, :update, :save])
-      return false unless current_roles.present?
-
-      if current_roles.length == 1
-        return permissions[current_roles[0]].merge({roles: [current_roles[0]]})
-      end
-
-      return unique_merge(current_roles, permissions, actions)
-    end
-
     # Uniquely merge the options of all roles that the user fulfills
     # Returns only the action(i.e. show, create) that was requested, by default this is all actions
     #
     # @param roles [Hash] roles that the user fulfills
     # @param permissions [Hash] the options for all roles
     # @param requested_actions [Array] the requested actions
-    def unique_merge(roles, permissions, requested_actions)
-      merged_hash = {attributes: {}, associations: {}, roles: roles}
+    def unique_merge(roles, permissions, requested_actions = [:show, :create, :update, :save])
+      return false unless roles.present?
+      merged_hash = {attributes: {}, associations: {}, roles: {for_current_model: [], for_associated_models: {}}}
 
       roles.each do |role|
+        merged_hash[:roles][:for_current_model] |= [role]
+        merged_hash[:roles][:for_associated_models] = merge_associated_roles(role, merged_hash[:roles][:for_associated_models])
         permissions[role].each do |type, permitted_actions|
           actions = permitted_actions.slice(*requested_actions)
           actions.each do |key, value|
@@ -127,6 +112,19 @@ module Policy
       end
 
       return merged_hash
+    end
+
+    def merge_associated_roles(role, merged_opts)
+      associated_roles = self.class.role_associations
+
+      return {} unless associated_roles[role].present?
+
+      associated_roles[role].each do |k, v|
+        assoc_role = {k => v}
+        merged_opts = merged_opts.merge(assoc_role){ | key, old, new | old | new}
+      end
+
+      return merged_opts
     end
 
     # Build an Array of the roles that the user fulfills.
@@ -146,20 +144,6 @@ module Policy
       end
 
       return current_roles
-    end
-
-    def determine_aliased_as_roles(roles, class_roles)
-      aliased_roles = Set.new
-
-      roles.each do |role|
-        class_roles.each do |key, value|
-          if value == role
-            aliased_roles.add(key)
-          end
-        end
-      end
-
-      return aliased_roles.to_a
     end
 
     # Helper method for testing the conditional of a role

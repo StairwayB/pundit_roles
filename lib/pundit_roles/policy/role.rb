@@ -7,7 +7,7 @@ module Role
   attr_accessor :scopes
 
   # Builds a new role by saving it into the #permissions class instance variable
-  # Valid options are :attributes, :associations, :scope, :uses_db, :extend
+  # Valid options are :attributes, :associations, :associated_as, :scope
   #
   # @param *opts [Array] the roles, and the options which define the roles
   # @raise [ArgumentError] if the options are incorrectly defined, or no options are present
@@ -25,8 +25,8 @@ module Role
     opts.each do |role|
       raise ArgumentError, "Expected Symbol for #{role}, got #{role.class}" unless role.is_a? Symbol
 
-      if options[:associated_as]
-        determine_role_aliases(role, options[:associated_as])
+      if options[:associations].present? or options[:associated_as]
+        build_associated_roles(role, options[:associated_as])
       end
 
       @permissions[role] = OptionBuilder.new(self, options[:attributes], options[:associations],  options[:scope]).permitted
@@ -35,20 +35,16 @@ module Role
   end
 
   # @api private
-  private def determine_role_aliases(role, associated_as)
-    if associated_as.is_a? Symbol
-      return nil
-    elsif associated_as.is_a? Array
-      associated_as.each do |assoc|
-        if assoc == :self
-          @role_associations[role] = role
-        else
-          @role_associations[assoc] = role
-        end
+  private def build_associated_roles(role, associated_as)
+    raise ArgumentError, 'If :associations are permitted for a role, :associated_as roles must be declared as well' unless associated_as
+    associated_as.each do |key, value|
+      raise ArgumentError, "Associated as values must be either a Symbol, or an Array of Symbols, got #{value.class} "+
+        "at key #{key} for #{role} instead" unless value.is_a? Symbol or value.is_a? Array
+      unless associated_as[key].is_a? Array
+        associated_as[key] = [value]
       end
-    else
-      raise ArgumentError, "'associated_as' must be either :self, :none or an Array of associated roles ([:logged_in_user, :post_owner]), got #{associated_as} instead"
     end
+    @role_associations[role] = associated_as
   end
 
   # @api private
@@ -72,7 +68,7 @@ module Role
 
   # @api private
   private def _role_option_validations
-    {attributes: [Hash, Symbol], associations: [Hash, Symbol], associated_as: [Array, Symbol], scope: [Proc]}
+    {attributes: [Hash, Symbol], associations: [Hash, Symbol], associated_as: [Hash], scope: [Proc]}
   end
 
 

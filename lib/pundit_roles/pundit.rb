@@ -27,7 +27,7 @@ module PunditOverwrite
       authorize_associations!(resource.class, opts)
     end
 
-    return resource
+    return @pundit_permissions
   end
 
   # Returns the permitted scope or raises exception
@@ -66,52 +66,69 @@ module PunditOverwrite
 
     opts[:query] ||= params[:action].to_s + '?'
 
-    @permitted_associations = {}
+    @pundit_association_permissions = {}
+    handle_associations(
+      record_class,
+      opts[:associations],
+      @pundit_permissions
+    )
 
-    handle_associations(record_class, opts[:associations], @pundit_permissions[:associations], opts[:query])
+    @pundit_permitted_associations = opts[:associations]
   end
 
-  # @api private
-  def handle_associations(record_class, requested_assoc, permitted_assoc, query)
-    permitted_actions = format_association_list(permitted_assoc)
+  def handle_associations(record_class, requested_assoc, pundit_permission)
+    permitted_actions = format_association_list(pundit_permission[:associations])
 
-    requested_assoc.each do |assoc|
+    # enumerator should not point to the same Array as requested_assoc, since that needs to be deleted from
+    request_enumerator = Array.new(requested_assoc)
+    request_enumerator.each do |assoc|
       if assoc.is_a? Symbol
-        next unless permitted_actions.keys.include? assoc
-        get_assoc_policy(record_class, assoc, query, permitted_actions[assoc].to_a)
-        next
-      end
+        unless permitted_actions.keys.include? assoc
+          requested_assoc.delete(assoc)
+          next
+        end
 
-      if assoc.is_a? Hash
+        assoc_constant = get_assoc_constant(record_class, assoc)
+        get_assoc_policy(
+          assoc_constant,
+          assoc,
+          pundit_permission[:roles][:for_associated_models][assoc],
+          permitted_actions[assoc]
+        )
+
+      elsif assoc.is_a? Hash
         raise ArgumentError, 'there can be only one key for each nested association,'+
-          "ex: {posts: [:comments, :likes]}, got #{assoc} instead, of length #{assoc.keys.length}" if assoc.keys.length > 1
-        next unless permitted_actions.keys.include? assoc.keys.first
-
-        assoc_constant = get_assoc_policy(record_class, assoc.keys.first, query, permitted_actions[assoc.keys.first].to_a)
-        handle_associations(assoc_constant, assoc.values.first, @permitted_associations[assoc.keys.first][:associations], query)
+          "ex: {posts: [:comments, :likes]}, got #{assoc} instead, with #{assoc.keys.length} keys" if assoc.keys.length > 1
+        unless permitted_actions.keys.include? assoc.keys.first
+          requested_assoc.delete(assoc)
+          next
+        end
+        assoc_constant = get_assoc_constant(record_class, assoc.keys.first)
+        get_assoc_policy(
+          assoc_constant,
+          assoc.keys.first,
+          pundit_permission[:roles][:for_associated_models][assoc.keys.first],
+          permitted_actions[assoc.keys.first]
+        )
+        handle_associations(
+          assoc_constant,
+          assoc.values.first,
+          @pundit_association_permissions[assoc.keys.first],
+        )
       end
     end
   end
 
   # @api private
-  def get_assoc_policy(record_class, association, query, actions)
-    assoc_constant = get_assoc_constant(record_class, association)
-
+  def get_assoc_policy(assoc_constant, association, associated_roles, actions)
     assoc_policy = policy(assoc_constant)
-    assoc_permission = assoc_policy.resolve_as_association(@pundit_permissions[:roles], actions)
+    assoc_permission = assoc_policy.resolve_as_association(associated_roles, actions)
 
     unless assoc_permission
-      raise Pundit::NotAuthorizedError, query: query, record: assoc_constant, policy: assoc_policy
+      raise Pundit::NotAuthorizedError, query: params[:action], record: assoc_constant, policy: assoc_policy
     end
 
-    if assoc_permission.is_a? TrueClass
-      @permitted_associations[association] = {attributes: {}, associations: {}, roles: []}
-      return assoc_constant
-    end
-
-    @permitted_associations[association] = assoc_permission
-
-    return assoc_constant
+    @pundit_association_permissions[association] = assoc_permission
   end
 
   # @api private
@@ -119,8 +136,8 @@ module PunditOverwrite
     permitted_actions = {}
     assoc.each do |key, associations|
       associations.each do |ass|
-        permitted_actions[ass] = Set.new unless permitted_actions[ass].present?
-        permitted_actions[ass].add(key)
+        permitted_actions[ass] = [] unless permitted_actions[ass].present?
+        permitted_actions[ass] |= [key]
       end
     end
 
@@ -128,11 +145,22 @@ module PunditOverwrite
   end
 
   # @api private
+  def build_association_roles(current_roles, role_associations, association)
+    associated_roles = []
+    current_roles.each do |role|
+      associated_roles |= role_associations[role][association]
+    end
+    return associated_roles
+  end
+
+  # @api private
   def get_assoc_constant(record_class, assoc)
     begin
       return assoc.to_s.classify.constantize
     rescue NameError
-      assoc_aliases = record_class.reflect_on_all_associations.map{|ass| {ass.name => ass.class_name}}
+      assoc_aliases = record_class.reflect_on_all_associations.map{|ass| {ass.name => ass.class_name}}.reduce Hash.new, :merge
+      require 'pry'
+      binding.pry
       if assoc_aliases.keys.include? assoc
         return assoc.constantize
       else
@@ -189,9 +217,9 @@ module PunditOverwrite
 
   # @api private
   def associated_show_attributes
-    return {} unless @permitted_associations
+    return {} unless @pundit_association_permissions
     associated_stuff = {}
-    @permitted_associations.each do |role, action|
+    @pundit_association_permissions.each do |role, action|
       associated_stuff[role] = action[:attributes].slice(:show)[:show]
     end
     return associated_stuff
@@ -199,9 +227,9 @@ module PunditOverwrite
 
   # @api private
   def associated_create_attributes
-    return {} unless @permitted_associations
+    return {} unless @pundit_association_permissions
     associated_stuff = {}
-    @permitted_associations.each do |role, action|
+    @pundit_association_permissions.each do |role, action|
       associated_stuff[role] = action[:attributes].slice(:create)[:create]
     end
     return associated_stuff
@@ -209,9 +237,9 @@ module PunditOverwrite
 
   # @api private
   def associated_update_attributes
-    return {} unless @permitted_associations
+    return {} unless @pundit_association_permissions
     associated_stuff = {}
-    @permitted_associations.each do |role, action|
+    @pundit_association_permissions.each do |role, action|
       associated_stuff[role] = action[:attributes].slice(:update)[:update]
     end
     return associated_stuff
@@ -219,12 +247,16 @@ module PunditOverwrite
 
   # @api private
   def associated_save_attributes
-    return {} unless @permitted_associations
+    return {} unless @pundit_association_permissions
     associated_stuff = {}
-    @permitted_associations.each do |role, action|
+    @pundit_association_permissions.each do |role, action|
       associated_stuff[role] = action[:attributes].slice(:save)[:save]
     end
     return associated_stuff
+  end
+
+  def permitted_associations
+    @pundit_permitted_associations
   end
 
 end
