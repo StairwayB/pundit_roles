@@ -12,5 +12,6 @@ group :development, :test do
   gem "pry"
   gem "rake"
   gem "rspec"
+  # gem 'simplecov', :require => false
   gem 'coveralls', require: false
 end
