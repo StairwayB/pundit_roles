@@ -1,9 +1,9 @@
-require 'pundit_roles/association_builder'
+require 'pundit_roles/pundit_associations'
 require 'pundit_roles/pundit_selectors'
 
 # Contains the overwritten #authorize method
 module PunditOverwrite
-  include AssociationBuilder
+  include PunditAssociations
   include PunditSelectors
 
   # A modified version of Pundit's default authorization. Returns a hash of permitted attributes or raises exception

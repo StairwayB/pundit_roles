@@ -1,8 +1,8 @@
-require 'coveralls'
-Coveralls.wear!
-
 # require 'simplecov'
 # SimpleCov.start
+
+require 'coveralls'
+Coveralls.wear!
 
 require 'bundler/setup'
 Bundler.setup
@@ -16,43 +16,56 @@ require 'pry'
 require 'active_support'
 require 'active_support/core_ext'
 
-RSpec.configure do |config|
+RSpec.configure do
   include Pundit
 end
 
-class User
+class Base
   attr_accessor :id
   def initialize(id)
     @id = id
   end
+
+  def where(opt)
+    return "scope with #{opt}"
+  end
 end
 
-class UserPolicy < Policy::Base
+class BasePolicy < Policy::Base
+  private
 
-  role :guest,
-       attributes: {
-         show: %i(username name),
-         create: %i(username name email phone_number password)
-       },
-       associations: {}
+  def basic_role?
+    @user.present?
+  end
 
-  role :logged_in_user,
+  def enhanced_role?
+    @resource.id == 'enhanced'
+  end
+end
+
+############################
+# describe 'basic behaviour'
+############################
+
+class Basic < Base; end
+
+class BasicPolicy < BasePolicy
+
+  role :basic_role,
        attributes: {
-         show: %i(username name created_at)
+         show: [:basic, :attributes]
        },
        associations: {
-         show: %i(posts followers following)
+         show: [:basic, :associations]
        }
 
-
-  role :correct_user,
+  role :enhanced_role,
        attributes: {
-         show: %i(username email phone_number updated_at),
-         update: %i(username email password current_password name)
+         show: [:enhanced, :attributes],
+         create: [:enhanced, :attributes]
        },
        associations: {
-         show: %i(settings),
-         save: %i(settings)
+         show: [:enhanced, :associations]
        }
 
   def allow_no_one?
@@ -60,141 +73,210 @@ class UserPolicy < Policy::Base
   end
 
   def allow_regular?
-    allow :logged_in_user
+    allow :basic_role
   end
 
   def pundit_default?
     @user.present?
   end
 
-  def allow_guest?
-    allow :guest, :logged_in_user
-  end
-
-  def allow_only_correct?
-    allow :correct_user
-  end
-
-  def can_have_merged_roles?
-    allow :guest, :logged_in_user, :correct_user
+  def allow_only_enhanced?
+    allow :enhanced_role
   end
 
   def raises_no_method?
     allow :no_method
   end
 
-  protected
-
-  def logged_in_user?
-    @user.present?
+  def returns_permitted?
+    allow :basic_role
   end
 
-  def correct_user?
-    @user.id == @resource.id
+  def merges_roles?
+    allow :basic_role, :enhanced_role
   end
 
 end
 
-class ImplicitUser < User
+#######################
+# describe 'guest role'
+#######################
+
+class Guest < Base; end
+
+class GuestPolicy < BasePolicy
+  role :guest,
+       attributes: {
+         show: [:guest, :attributes],
+       },
+       associations: {
+         show: [:guest, :associations]
+       },
+       scope: lambda{@resource.where('guest')}
+
+  role :other,
+       attributes: {
+         show: [:other, :attributes]
+       }
+
+  def return_scope?
+    allow :guest, :other
+  end
+
+  def allow_guest?
+    allow :guest, :other
+  end
+
+  def dont_allow_guest?
+    allow :other
+  end
+
+  def other?
+    @resource.id == 'other'
+  end
+end
+
+###############################
+# describe 'option declaration'
+###############################
+
+class ExplicitDeclaration < Base; end
+
+class ExplicitDeclarationPolicy < BasePolicy
+
+  role :basic_role,
+       attributes: {
+         show: [:basic],
+         create: [:basic]
+       },
+       associations: {
+         show: [:basic]
+       }
+
+  role :enhanced_role,
+       attributes: {
+         show: [:enhanced],
+         update: [:enhanced]
+       },
+       associations: {
+         show: [:enhanced]
+       }
+
+  role :save_option_role,
+       attributes: {
+         show: [:save_option],
+         save: [:save_option]
+       },
+       associations: {
+         save: [:save_option]
+       }
+
+  def explicit_declaration?
+    allow :basic_role, :enhanced_role, :guest
+  end
+
+  def handles_save_option?
+    allow :save_option_role
+  end
+
+  private
+
+  def save_option_role?
+    @resource.id == 'save_option'
+  end
+
+end
+
+class ImplicitDeclaration < Base
   def self.column_names
-    %i(column)
+    [:attributes, :names, :id]
   end
 
   def self.reflect_on_all_associations
-    [OpenStruct.new(:name => :assoc)]
+    [OpenStruct.new(:name => :association)]
   end
 end
 
-class ImplicitUserPolicy < Policy::Base
-  role :regular_user,
-       attributes: :save_all,
+class ImplicitDeclarationPolicy < BasePolicy
+
+  role :show_all_role,
+       attributes: :show_all,
        associations: :show_all
 
-  role :correct_user,
-       attributes: {show: :all,
-                    create: [:all_minus, :column]}
+  role :create_update_all_role,
+       attributes: :create_all,
+       associations: :update_all
+
+  role :save_all_role,
+       attributes: :save_all,
+       associations: :save_all
+
+  role :all_role,
+       attributes: {
+         show: :all,
+         create: :all
+       },
+       associations: {
+         create: :all
+       }
+
+  role :removes_restricted_role,
+       attributes: {
+         create: :all
+       }
 
   def implicit_declaration?
-    [:regular_user]
+    allow :show_all_role, :create_update_all_role, :save_all_role, :all_role
   end
 
-  def implicit_option_declaration?
-    [:correct_user]
+  private
+
+  def show_all_role?
+    @resource.id == 'show_all_role'
   end
 
-  protected
-
-  def correct_user?
-    @user.id == @resource.id
+  def create_update_all_role?
+    @resource.id == 'create_update_all_role'
   end
 
-  def regular_user?
-    @user.present?
+  def save_all_role?
+    @resource.id == 'save_all_role'
   end
 
-end
-
-class RestrictedUser < User
-  def self.column_names
-    %i(column remove_this)
-  end
-end
-
-class RestrictedUserPolicy < Policy::Base
-  RESTRICTED_SHOW_ATTRIBUTES = [:remove_this]
-  RESTRICTED_CREATE_ATTRIBUTES = RESTRICTED_CREATE_ATTRIBUTES + [:extra]
-
-  role :regular_user,
-       attributes: :show_all
-
-  def remove_restricted?
-    [:regular_user]
-  end
-
-  def regular_user?
-    @user.present?
-  end
-end
-
-class ScopedUser < User
-  def guest_user
-    :guest_user
-  end
-
-  def some_user
-    :some_user
-  end
-
-  def regular_user
-    [:returns, :many, :things]
+  def all_role?
+    @resource.id == 'all_role'
   end
 
 end
 
-class ScopedUserPolicy < Policy::Base
+###################
+# describe 'scopes'
+###################
 
-  role :guest, scope: lambda{resource.guest_user}
-  role :some_role, scope: lambda{resource.some_user},
+class Scoped < Base; end
+
+class ScopedPolicy < BasePolicy
+  role :guest, scope: lambda{resource.where('guest_user')}
+  role :some_role, scope: lambda{resource.where('some_role')},
         attributes:{
-          show: %i(username)
+          show: [:some_role]
         }
-  role :some_extra_role, scope: lambda{resource.regular_user},
+  role :some_extra_role, scope: lambda{resource.where('some_extra_role')},
         attributes:{
-         show: %i(email)
+         show: [:some_extra_role]
         }
-  role :regular_user, scope: lambda{resource.regular_user}
-  role :not_allowed, scope: lambda{resource.guest_user}
+  role :not_allowed, scope: lambda{resource.where('not_allowed')}
 
   def index?
-    allow :some_role, :regular_user, :some_extra_role
+    allow :some_role, :some_extra_role
   end
 
-  def allows_guest?
-    allow :guest, :regular_user
+  def allow_guest?
+    allow :guest, :some_role
   end
 
-  def doesnt_allow_guest?
-    allow :regular_user
+  def dont_allow_guest?
+    allow :some_role
   end
 
   def boolean_permission?
@@ -204,23 +286,36 @@ class ScopedUserPolicy < Policy::Base
   private
 
   def some_role?
-    @resource.id == 3
+    @resource.id == 'some_role'
   end
 
   def some_extra_role?
-    @resource.id == 3
-  end
-
-  def regular_user?
-    @resource.id == 2
+    @resource.id == 'some_extra_role'
   end
 
   def not_allowed?
-    @resource.id == 4
+    @resource.id == 'not_allowed'
   end
 end
 
-class AssociationPermission < User
+#####################
+# describe 'defaults'
+#####################
+
+class Defaults < Base; end
+
+class DefaultsPolicy < BasePolicy
+  RESTRICTED_SHOW_ATTRIBUTES = [:restricted]
+  RESTRICTED_CREATE_ATTRIBUTES = BasePolicy::RESTRICTED_CREATE_ATTRIBUTES + [:restricted]
+end
+
+#####################################
+# describe 'pundit associations'
+# describe 'pundit selectors'
+#####################################
+
+
+class AssociationPermission < Base
   def self.reflect_on_all_associations
     [OpenStruct.new(:name => :assoc, :class_name => 'AssociatedPermission'),
      OpenStruct.new(:name => :show, :class_name => 'AssociatedPermission'),
@@ -230,7 +325,7 @@ class AssociationPermission < User
   end
 end
 
-class AssociationPermissionPolicy < Policy::Base
+class AssociationPermissionPolicy < BasePolicy
   role :regular_user,
        attributes: {show: [:base]},
        associations: {show: [:associated_permission]},
@@ -246,23 +341,27 @@ class AssociationPermissionPolicy < Policy::Base
        associations: {show: [:assoc]},
        associated_as: {:assoc => [:nested_user_two]}
 
-  role :test_helper,
+  role :selector_helper_user,
        attributes: {
          show: [:show],
          create: [:create],
-         update: [:update],
-         save: [:save]
+         update: [:update]
        },
        associations: {
          show: [:show],
          create: [:create],
-         update: [:update],
-         save: [:save]
+         update: [:update]
        },
        associated_as: {:show => [:test_helper], :create => [:test_helper], :update => [:test_helper], :save => [:test_helper]}
 
+  role :raises_role,
+       associations: {
+         show: [:doesnt_exist]
+       },
+       associated_as: {:show => [:doesnt_exist]}
+
   def basic_assoc_validation?
-    allow :regular_user, :test_helper
+    allow :regular_user, :selector_helper_user
   end
 
   def nested_assoc_validation?
@@ -273,37 +372,43 @@ class AssociationPermissionPolicy < Policy::Base
     allow :aliased_assoc
   end
 
+  def raises_name_error?
+    allow :raises_role
+  end
+
   private
 
   def regular_user?
-    @resource.id == 2
+    @resource.id == 'regular_user'
   end
 
   def nested_user?
-    @resource.id == 3
+    @resource.id == 'nested_user'
   end
 
   def aliased_assoc?
-    @resource.id == 4
+    @resource.id == 'aliased_assoc'
   end
 
-  def test_helper?
-    @resource.id == 5
+  def selector_helper_user?
+    @resource.id == 'selector_helper_user'
+  end
+
+  def raises_role?
+    @resource.id == 'raises_role'
   end
 end
 
-class AssociatedPermission < AssociationPermission
+class AssociatedPermission < AssociationPermission; end
 
-end
-
-class AssociatedPermissionPolicy < Policy::Base
+class AssociatedPermissionPolicy < BasePolicy
   role :regular_user,
        attributes: {show: [:assoc]}
 
   role :nested_user_one,
        attributes: {show: [:assoc]},
        associations: {show: [:nested_permission]},
-       associated_as: {:nested_permission => [:regular_user]}
+       associated_as: {:nested_permission =>:regular_user}
 
   role :nested_user_two,
        attributes: {show: [:assoc]},
@@ -314,20 +419,18 @@ class AssociatedPermissionPolicy < Policy::Base
        attributes: {
          show: [:show],
          create: [:create],
-         update: [:update],
-         save: [:save]
+         update: [:update]
        },
        associations: {
          show: [:show],
          create: [:create],
-         update: [:update],
-         save: [:save]
+         update: [:update]
        }
 end
 
 class NestedPermission < AssociationPermission; end
 
-class NestedPermissionPolicy < Policy::Base
+class NestedPermissionPolicy < BasePolicy
   role :regular_user,
        attributes: {show: [:nested]}
   role :other_user,

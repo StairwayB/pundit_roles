@@ -31,11 +31,6 @@ module PunditSelectors
     @pundit_permissions[:attributes][:update]
   end
 
-  # returns the permitted save attributes of the primary model
-  def permitted_save_attributes
-    @pundit_permissions[:attributes][:save]
-  end
-
   # returns the permitted show associations of the primary model
   def permitted_show_associations
     @pundit_permissions[:associations][:show]
@@ -49,11 +44,6 @@ module PunditSelectors
   # returns the permitted update associations of the primary model
   def permitted_update_associations
     @pundit_permissions[:associations][:update]
-  end
-
-  # returns the permitted save attributes of the primary model
-  def permitted_save_associations
-    @pundit_permissions[:associations][:save]
   end
 
   # returns the permitted show attributes of the associated models
@@ -86,16 +76,6 @@ module PunditSelectors
     return associated_stuff
   end
 
-  # returns the permitted save associations of the associated models
-  def association_save_attributes
-    return {} unless @pundit_association_permissions
-    associated_stuff = {}
-    @pundit_association_permissions.each do |role, action|
-      associated_stuff[role] = action[:attributes].slice(:save)[:save]
-    end
-    return associated_stuff
-  end
-
   # returns the permitted show associations of the associated models
   def association_show_associations
     return {} unless @pundit_association_permissions
@@ -122,16 +102,6 @@ module PunditSelectors
     associated_stuff = {}
     @pundit_association_permissions.each do |role, action|
       associated_stuff[role] = action[:associations].slice(:update)[:update]
-    end
-    return associated_stuff
-  end
-
-  # returns the permitted save associations of the associated models
-  def association_save_associations
-    return {} unless @pundit_association_permissions
-    associated_stuff = {}
-    @pundit_association_permissions.each do |role, action|
-      associated_stuff[role] = action[:associations].slice(:save)[:save]
     end
     return associated_stuff
   end
