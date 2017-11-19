@@ -74,8 +74,15 @@ module Policy
     # @param permitted_roles [Hash] roles returned by the query
     # @param permissions [Hash] unrefined hash of options defined by all permitted_for methods
     def handle_guest_options(permitted_roles, permissions)
-      if permitted_roles.include? :guest
-        return permissions[:guest].merge({roles: [:guest]})
+      guest_associations = self.class.role_associations[:guest] ? self.class.role_associations[:guest] : {}
+        if permitted_roles.include? :guest
+        return permissions[:guest].merge(
+          {roles:
+             {
+               for_current_model: [:guest],
+               for_associated_models: guest_associations
+             }
+          })
       end
       return false
     end
@@ -100,6 +107,9 @@ module Policy
       roles.each do |role|
         merged_hash[:roles][:for_current_model] |= [role]
         merged_hash[:roles][:for_associated_models] = merge_associated_roles(role, merged_hash[:roles][:for_associated_models])
+
+        raise ArgumentError, "Role #{role} is not defined" unless permissions[role].present?
+
         permissions[role].each do |type, permitted_actions|
           actions = permitted_actions.slice(*requested_actions)
           actions.each do |key, value|

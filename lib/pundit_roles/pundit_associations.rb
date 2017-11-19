@@ -1,5 +1,5 @@
 # Module containing the methods to authorize associations
-module AssociationBuilder
+module PunditAssociations
   private
 
   # authorizes associations for the primary record
