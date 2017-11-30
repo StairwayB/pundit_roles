@@ -1,8 +1,8 @@
-# require 'simplecov'
-# SimpleCov.start
+require 'simplecov'
+SimpleCov.start
 
-require 'coveralls'
-Coveralls.wear!
+# require 'coveralls'
+# Coveralls.wear!
 
 require 'bundler/setup'
 Bundler.setup
@@ -328,7 +328,7 @@ end
 class AssociationPermissionPolicy < BasePolicy
   role :regular_user,
        attributes: {show: [:base]},
-       associations: {show: [:associated_permission]},
+       associations: {show: [:associated_permission], create: [:associated_permission], update: [:associated_permission]},
        associated_as: {:associated_permission => [:regular_user]}
 
   role :nested_user,
@@ -352,7 +352,7 @@ class AssociationPermissionPolicy < BasePolicy
          create: [:create],
          update: [:update]
        },
-       associated_as: {:show => [:test_helper], :create => [:test_helper], :update => [:test_helper], :save => [:test_helper]}
+       associated_as: {:show => [:test_helper], :create => [:test_helper], :update => [:test_helper]}
 
   role :raises_role,
        associations: {

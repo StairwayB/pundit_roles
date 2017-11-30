@@ -11,7 +11,7 @@ describe PunditRoles do
     it 'returns the associations and associated_as roles for the current_roles' do
       expect(authorize!(regular_user, query: :basic_assoc_validation?, associations: [:associated_permission]))
         .to eq({attributes: {show: %i(base)},
-                associations: {show: %i(associated_permission)},
+                associations: {show: [:associated_permission], create: [:associated_permission], update: [:associated_permission]},
                 roles: {
                   for_current_model: [:regular_user],
                   for_associated_models: {:associated_permission => [:regular_user]}
@@ -59,15 +59,31 @@ describe PunditRoles do
             )
     end
 
-    it 'removes unauthorized associations from the permissions for associated models' do
+    it 'removes unauthorized associations from the show permissions for associated models' do
       authorize!(regular_user, query: :basic_assoc_validation?, associations: [:associated_permission, :not_authorized])
-      expect(permitted_associations)
+      expect(permitted_show_associations)
         .to eq(
               [:associated_permission]
             )
     end
 
-    it 'removes unauthorized associations from the permissions for nested associated models' do
+    it 'removes unauthorized associations from the create permissions for associated models' do
+      authorize!(regular_user, query: :basic_assoc_validation?, associations: [:associated_permission, :not_authorized])
+      expect(permitted_create_associations)
+        .to eq(
+              [:associated_permission]
+            )
+    end
+
+    it 'removes unauthorized associations from the update permissions for associated models' do
+      authorize!(regular_user, query: :basic_assoc_validation?, associations: [:associated_permission, :not_authorized])
+      expect(permitted_update_associations)
+        .to eq(
+              [:associated_permission]
+            )
+    end
+
+    it 'removes unauthorized associations from the show permissions for nested associated models' do
       authorize!(
         regular_user,
         query: :basic_assoc_validation?,
@@ -75,7 +91,35 @@ describe PunditRoles do
           {:associated_permission => [:not_authorized, :still_not]},
           {:not_authorized => [:indeed_not]}
         ])
-      expect(permitted_associations)
+      expect(permitted_show_associations)
+        .to eq(
+              [{:associated_permission=>[]}]
+            )
+    end
+
+    it 'removes unauthorized associations from the create permissions for nested associated models' do
+      authorize!(
+        regular_user,
+        query: :basic_assoc_validation?,
+        associations: [
+          {:associated_permission => [:not_authorized, :still_not]},
+          {:not_authorized => [:indeed_not]}
+        ])
+      expect(permitted_create_associations)
+        .to eq(
+              [{:associated_permission=>[]}]
+            )
+    end
+
+    it 'removes unauthorized associations from the update permissions for nested associated models' do
+      authorize!(
+        regular_user,
+        query: :basic_assoc_validation?,
+        associations: [
+          {:associated_permission => [:not_authorized, :still_not]},
+          {:not_authorized => [:indeed_not]}
+        ])
+      expect(permitted_update_associations)
         .to eq(
               [{:associated_permission=>[]}]
             )
@@ -85,7 +129,7 @@ describe PunditRoles do
       authorize!(aliased_user, query: :aliased_validation?, associations: [:assoc])
       expect(permitted_associations)
         .to eq(
-              [:assoc]
+              {:show=>[:assoc], :create=>[], :update=>[]}
             )
       expect(association_permissions)
         .to eq({

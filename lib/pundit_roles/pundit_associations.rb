@@ -1,75 +1,115 @@
 # Module containing the methods to authorize associations
 module PunditAssociations
-  private
 
   # authorizes associations for the primary record
   #
-  # @param record_class [Class] the class of the record whose associations are being authorized
   # @param opts [Hash]
-  # query: the method which returns the permissions,
+  #   query: the method which returns the permissions,
   #     If omitted then this defaults to the Rails controller action name.
   #   associations: associations to authorize, defaults to []
-  def authorize_associations!(record_class, opts = {query: nil, associations: []})
-    raise ArgumentError, 'You must first call authorize!' unless @pundit_permissions.present?
+  def authorize_associations!(opts = {query: nil, associations: []})
+    raise ArgumentError, 'You must first call authorize!' unless @pundit_primary_permissions.present?
 
     opts[:query] ||= params[:action].to_s + '?'
 
-    @pundit_association_permissions = {}
+    assoc_permissions = {show: [], create: [], update: [], }
+
     handle_associations(
-      record_class,
+      @pundit_primary_resource,
       opts[:associations],
-      @pundit_permissions
+      @pundit_primary_permissions,
+      assoc_permissions,
+      @formatted_attribute_lists
     )
 
-    @pundit_permitted_associations = opts[:associations]
+    @formatted_attribute_lists[:show].merge!(association_show_attributes)
+    @pundit_permitted_associations = assoc_permissions
   end
 
-  # @api private
-  def handle_associations(record_class, requested_assoc, pundit_permission)
-    permitted_actions = format_association_list(pundit_permission[:associations])
+  private
 
-    # enumerator should not point to the same Array as requested_assoc, since that needs to be deleted from
-    request_enumerator = Array.new(requested_assoc)
-    request_enumerator.each do |assoc|
-      if assoc.is_a? Symbol
-        unless permitted_actions.keys.include? assoc
-          requested_assoc.delete(assoc)
+  # @api private
+  def handle_associations(record_class, requested_assoc, pundit_permission, assoc_opts={}, save_attributes={})
+
+    permitted_actions = format_association_list(pundit_permission[:associations])
+    requested_assoc.each_with_index do |assoc, index|
+      raise ArgumentError, "Invalid association declaration, expected one of #{_valid_assoc_opts}, "+
+        "got #{assoc} of class #{assoc.class}" unless _valid_assoc_opts.include? assoc.class
+
+      if assoc.is_a? Symbol or assoc.is_a? String
+        unless permitted_actions.keys.map(&:to_sym).include? assoc.to_sym
           next
         end
 
         assoc_constant = get_assoc_constant(record_class, assoc)
-        get_assoc_policy(
+        fetch_assoc_policy(
           assoc_constant,
           assoc,
           pundit_permission[:roles][:for_associated_models][assoc],
           permitted_actions[assoc]
         )
+        build_assoc_opts(assoc_opts, save_attributes, permitted_actions, assoc, false)
 
       elsif assoc.is_a? Hash
-        raise ArgumentError, 'there can be only one key for each nested association,'+
-          "ex: {posts: [:comments, :likes]}, got #{assoc} instead, with #{assoc.keys.length} keys" if assoc.keys.length > 1
-        unless permitted_actions.keys.include? assoc.keys.first
-          requested_assoc.delete(assoc)
-          next
+        assoc.each do |current_assoc, value|
+          unless permitted_actions.keys.map(&:to_sym).include? current_assoc.to_sym
+            next
+          end
+
+          assoc_constant = get_assoc_constant(record_class, current_assoc)
+
+          fetch_assoc_policy(
+            assoc_constant,
+            current_assoc,
+            pundit_permission[:roles][:for_associated_models][current_assoc],
+            permitted_actions[current_assoc]
+          )
+          build_assoc_opts(assoc_opts, save_attributes,  permitted_actions, current_assoc, true)
+          handle_associations(
+            assoc_constant,
+            value,
+            @pundit_association_permissions[current_assoc],
+            build_next_opts(assoc_opts, save_attributes,  current_assoc, index)
+          )
         end
-        assoc_constant = get_assoc_constant(record_class, assoc.keys.first)
-        get_assoc_policy(
-          assoc_constant,
-          assoc.keys.first,
-          pundit_permission[:roles][:for_associated_models][assoc.keys.first],
-          permitted_actions[assoc.keys.first]
-        )
-        handle_associations(
-          assoc_constant,
-          assoc.values.first,
-          @pundit_association_permissions[assoc.keys.first],
-        )
+      end
+    end
+  end
+
+
+  # @api private
+  def build_assoc_opts(assoc_opts, save_attributes,  permitted_actions, assoc, is_hash)
+    permitted_actions[assoc].each do |key|
+      unless assoc_opts[key].nil?
+        if is_hash
+          assoc_opts[key] << {assoc => []}
+        else
+          assoc_opts[key] << assoc
+        end
+
+        if key != :show
+          save_attributes[key] << {"#{assoc}_attributes".to_sym => @pundit_association_permissions[assoc][:attributes][key]}
+        end
       end
     end
   end
 
   # @api private
-  def get_assoc_policy(assoc_constant, association, associated_roles, actions)
+  def build_next_opts(assoc_opts, save_attributes, assoc, assoc_index)
+    next_opts = {}
+    [:show, :create, :update].each do |type|
+      next_opts[type] = assoc_opts[type][assoc_index].present? ? assoc_opts[type][assoc_index][assoc] : nil
+    end
+
+    [:create, :update].each do |type|
+      next_opts[type] = save_attributes[type].is_a?(Hash) ? save_attributes[type].values.last : nil
+    end
+
+    return next_opts
+  end
+
+  # @api private
+  def fetch_assoc_policy(assoc_constant, association, associated_roles, actions)
     assoc_policy = policy(assoc_constant)
     assoc_permission = assoc_policy.resolve_as_association(associated_roles, actions)
 
@@ -95,6 +135,7 @@ module PunditAssociations
       return assoc.to_s.classify.constantize
     rescue NameError
       assoc_aliases = record_class.reflect_on_all_associations.map{|ass| {ass.name => ass.class_name}}.reduce Hash.new, :merge
+
       if assoc_aliases.keys.include? assoc
         return assoc_aliases[assoc].constantize
       else
@@ -102,5 +143,10 @@ module PunditAssociations
           "does not include any associations named #{assoc}"
       end
     end
+  end
+
+  # @api private
+  def _valid_assoc_opts
+    [Hash, String, Symbol]
   end
 end

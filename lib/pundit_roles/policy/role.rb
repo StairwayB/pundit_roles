@@ -48,12 +48,11 @@ module Role
   private def raise_if_options_are_invalid(options)
     options.each do |key, value|
       if value.present?
-        expected = _role_option_validations[key]
-        do_raise = true
-        expected.each do |type|
-          do_raise = false if value.is_a? type
+        will_raise = true
+        _role_option_validations[key].each do |type|
+          will_raise = false if value.is_a? type
         end
-        raise ArgumentError, "Expected #{expected} for #{key}, got #{value.class}" if do_raise
+        raise ArgumentError, "Expected #{expected} for #{key}, got #{value.class}" if will_raise
       end
     end
   end
