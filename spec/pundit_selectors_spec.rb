@@ -19,17 +19,28 @@ describe PunditRoles do
                  },
                  roles: {
                    for_current_model: [:selector_helper_user],
-                   for_associated_models: {:show => [:test_helper], :create => [:test_helper], :update => [:test_helper], :save => [:test_helper]}
+                   for_associated_models: {:show => [:test_helper], :create => [:test_helper], :update => [:test_helper]}
                  }
                }
             )
     end
 
+    it '.attribute_permissions' do
+      authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:show, :create, :update])
+      expect(attribute_permissions)
+        .to eq({
+                 show: {:association_permission=>[:show], :show=>[:show], :create=>nil, :update=>nil},
+                 create: [:create, {:create_attributes=>[:create]}],
+                 update: [:update, {:update_attributes=>[:update]}]
+               }
+            )
+    end
+
     it '.permitted_associations' do
-      authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:show])
+      authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:show, :create, :update])
       expect(permitted_associations)
         .to eq(
-              [:show]
+              {:show=>[:show], :create=>[:create], :update=>[:update]}
             )
     end
 
@@ -56,7 +67,7 @@ describe PunditRoles do
       authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:show])
       expect(permitted_show_attributes)
         .to eq(
-              [:show]
+              {:association_permission=>[:show], :show=>[:show]}
             )
     end
 
@@ -64,7 +75,7 @@ describe PunditRoles do
       authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:create])
       expect(permitted_create_attributes)
         .to eq(
-              [:create]
+              [:create, {:create_attributes=>[:create]}]
             )
     end
 
@@ -72,7 +83,7 @@ describe PunditRoles do
       authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:update])
       expect(permitted_update_attributes)
         .to eq(
-              [:update]
+              [:update, {:update_attributes=>[:update]}]
             )
     end
 
@@ -95,6 +106,54 @@ describe PunditRoles do
     it '.permitted_update_associations' do
       authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:update])
       expect(permitted_update_associations)
+        .to eq(
+              [:update]
+            )
+    end
+
+    it '.primary_show_attributes' do
+      authorize!(selector_helper_user, query: :basic_assoc_validation?)
+      expect(primary_show_attributes)
+        .to eq(
+              [:show]
+            )
+    end
+
+    it '.primary_create_attributes' do
+      authorize!(selector_helper_user, query: :basic_assoc_validation?)
+      expect(primary_create_attributes)
+        .to eq(
+              [:create]
+            )
+    end
+
+    it '.primary_update_attributes' do
+      authorize!(selector_helper_user, query: :basic_assoc_validation?)
+      expect(primary_update_attributes)
+        .to eq(
+              [:update]
+            )
+    end
+
+    it '.primary_show_associations' do
+      authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:show])
+      expect(primary_show_associations)
+        .to eq(
+              [:show]
+            )
+    end
+
+    it '.primary_create_associations' do
+      authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:create])
+      expect(primary_create_associations)
+        .to eq(
+              [:create]
+            )
+    end
+
+    it '.primary_update_associations' do
+      authorize!(selector_helper_user, query: :basic_assoc_validation?, associations: [:update])
+      expect(primary_update_associations)
         .to eq(
               [:update]
             )

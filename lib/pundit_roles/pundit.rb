@@ -32,10 +32,20 @@ module PunditOverwrite
       return resource
     end
 
-    @pundit_permissions = permission
+    @pundit_primary_resource = resource.is_a?(Class) ? resource : resource.class
+    @pundit_primary_permissions = permission
+
+    resource_sym = @pundit_primary_resource.name.underscore.to_sym
+    @formatted_attribute_lists = {
+      show: {resource_sym => primary_show_attributes},
+      create: [*primary_create_attributes],
+      update: [*primary_update_attributes]
+    }
+    @pundit_association_permissions = {}
+    @pundit_permitted_associations = {}
 
     if opts[:associations]
-      authorize_associations!(resource.class, opts)
+      authorize_associations!(opts)
     end
 
     return permission
