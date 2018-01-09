@@ -12,30 +12,43 @@ module PunditAssociations
 
     opts[:query] ||= params[:action].to_s + '?'
 
-    assoc_permissions = {show: [], create: [], update: [], }
+    @pundit_requested_associations = Array.new(opts[:associations])
+    @pundit_allowed_associations = []
 
     handle_associations(
       @pundit_primary_resource,
-      opts[:associations],
+      @pundit_requested_associations,
       @pundit_primary_permissions,
-      assoc_permissions,
-      @formatted_attribute_lists
+      @pundit_allowed_associations
     )
 
-    @formatted_attribute_lists[:show].merge!(association_show_attributes)
-    @pundit_permitted_associations = assoc_permissions
+    [:show, :create, :update].each do |type|
+      determine_permitted_associations(
+        @pundit_allowed_associations,
+        @pundit_primary_permissions,
+        @pundit_permitted_associations[type],
+        type
+      )
+    end
+
+    @pundit_attribute_lists[:show].merge!(association_show_attributes)
+
+    [:create, :update].each do |type|
+      determine_save_permissions(
+        @pundit_permitted_associations[type],
+        @pundit_attribute_lists[type],
+        type
+      )
+    end
   end
 
   private
 
   # @api private
-  def handle_associations(record_class, requested_assoc, pundit_permission, assoc_opts={}, save_attributes={})
-
+  def handle_associations(record_class, requested_assoc, pundit_permission, permitted_assoc)
     permitted_actions = format_association_list(pundit_permission[:associations])
-    requested_assoc.each_with_index do |assoc, index|
-      raise ArgumentError, "Invalid association declaration, expected one of #{_valid_assoc_opts}, "+
-        "got #{assoc} of class #{assoc.class}" unless _valid_assoc_opts.include? assoc.class
 
+    requested_assoc.each do |assoc|
       if assoc.is_a? Symbol or assoc.is_a? String
         unless permitted_actions.keys.map(&:to_sym).include? assoc.to_sym
           next
@@ -48,7 +61,7 @@ module PunditAssociations
           pundit_permission[:roles][:for_associated_models][assoc],
           permitted_actions[assoc]
         )
-        build_assoc_opts(assoc_opts, save_attributes, permitted_actions, assoc, false)
+        permitted_assoc << assoc
 
       elsif assoc.is_a? Hash
         assoc.each do |current_assoc, value|
@@ -57,55 +70,25 @@ module PunditAssociations
           end
 
           assoc_constant = get_assoc_constant(record_class, current_assoc)
-
           fetch_assoc_policy(
             assoc_constant,
             current_assoc,
             pundit_permission[:roles][:for_associated_models][current_assoc],
             permitted_actions[current_assoc]
           )
-          build_assoc_opts(assoc_opts, save_attributes,  permitted_actions, current_assoc, true)
+          permitted_assoc << {current_assoc => []}
           handle_associations(
             assoc_constant,
             value,
-            @pundit_association_permissions[current_assoc],
-            build_next_opts(assoc_opts, save_attributes,  current_assoc, index)
+            @pundit_permission_table[current_assoc],
+            permitted_assoc.last[current_assoc]
           )
         end
+      else
+        raise ArgumentError, "Invalid association parameter, expected one of #{_valid_assoc_opts}, "+
+          "got #{assoc} of class #{assoc.class}"
       end
     end
-  end
-
-
-  # @api private
-  def build_assoc_opts(assoc_opts, save_attributes,  permitted_actions, assoc, is_hash)
-    permitted_actions[assoc].each do |key|
-      unless assoc_opts[key].nil?
-        if is_hash
-          assoc_opts[key] << {assoc => []}
-        else
-          assoc_opts[key] << assoc
-        end
-
-        if key != :show
-          save_attributes[key] << {"#{assoc}_attributes".to_sym => @pundit_association_permissions[assoc][:attributes][key]}
-        end
-      end
-    end
-  end
-
-  # @api private
-  def build_next_opts(assoc_opts, save_attributes, assoc, assoc_index)
-    next_opts = {}
-    [:show, :create, :update].each do |type|
-      next_opts[type] = assoc_opts[type][assoc_index].present? ? assoc_opts[type][assoc_index][assoc] : nil
-    end
-
-    [:create, :update].each do |type|
-      next_opts[type] = save_attributes[type].is_a?(Hash) ? save_attributes[type].values.last : nil
-    end
-
-    return next_opts
   end
 
   # @api private
@@ -113,7 +96,7 @@ module PunditAssociations
     assoc_policy = policy(assoc_constant)
     assoc_permission = assoc_policy.resolve_as_association(associated_roles, actions)
 
-    @pundit_association_permissions[association] = assoc_permission
+    @pundit_permission_table[association] = assoc_permission
   end
 
   # @api private
@@ -127,6 +110,53 @@ module PunditAssociations
     end
 
     return permitted_actions
+  end
+
+  # @api private
+  def determine_permitted_associations(requested_assoc, pundit_permission, permitted_opts, type)
+    permitted_actions =  format_association_list(pundit_permission[:associations]) #todo: rethink if we need this format
+
+    requested_assoc.each do |assoc|
+      if assoc.is_a? Symbol or assoc.is_a? String
+        if permitted_actions[assoc].include? type
+          permitted_opts << assoc
+        end
+      elsif assoc.is_a? Hash
+        assoc.each do |current_assoc, value|
+          if permitted_actions[current_assoc].include? type
+            permitted_opts << {current_assoc => []}
+
+            determine_permitted_associations(
+              value,
+              @pundit_permission_table[current_assoc],
+              permitted_opts.last[current_assoc],
+              type
+            )
+          end
+        end
+      end
+    end
+  end
+
+  # @api private
+  def determine_save_permissions(permitted_assoc, save_attributes, type)
+
+    permitted_assoc.each do |assoc|
+      if assoc.is_a? Symbol or assoc.is_a? String
+        save_attributes << {"#{assoc}_attributes".to_sym => @pundit_permission_table[assoc][:attributes][type]}
+      elsif assoc.is_a? Hash
+        assoc.each do |current_assoc, value|
+          assoc_sym = "#{current_assoc}_attributes".to_sym
+          save_attributes << {assoc_sym => @pundit_permission_table[current_assoc][:attributes][type]}
+
+          determine_save_permissions(
+            value,
+            save_attributes.last[assoc_sym],
+            type
+          )
+        end
+      end
+    end
   end
 
   # @api private
