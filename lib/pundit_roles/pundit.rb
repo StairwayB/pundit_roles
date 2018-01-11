@@ -22,33 +22,34 @@ module PunditOverwrite
     @_pundit_policy_authorized = true
 
     policy = policy(resource)
-    permission = policy.resolve_query(opts[:query])
+    primary_permission = policy.resolve_query(opts[:query])
 
-    unless permission
+    unless primary_permission
       raise Pundit::NotAuthorizedError, query: opts[:query], record: resource, policy: policy
     end
 
-    if permission.is_a? TrueClass
+    if primary_permission.is_a? TrueClass
       return resource
     end
 
     @pundit_primary_resource = resource.is_a?(Class) ? resource : resource.class
-    @pundit_primary_permissions = permission
+    @pundit_primary_permissions = primary_permission
 
-    resource_sym = @pundit_primary_resource.name.underscore.to_sym
-    @formatted_attribute_lists = {
-      show: {resource_sym => primary_show_attributes},
+    primary_resource_identifier = @pundit_primary_resource.name.underscore.to_sym
+
+    @pundit_attribute_lists = {
+      show: {primary_resource_identifier => primary_show_attributes},
       create: [*primary_create_attributes],
       update: [*primary_update_attributes]
     }
-    @pundit_association_permissions = {}
-    @pundit_permitted_associations = {}
+    @pundit_permission_table = {}
+    @pundit_permitted_associations = {show: [], create: [], update: []}
 
-    if opts[:associations]
+    if opts[:associations].present?
       authorize_associations!(opts)
     end
 
-    return permission
+    return @pundit_primary_permissions
   end
 
   # Returns the permitted scope or raises exception

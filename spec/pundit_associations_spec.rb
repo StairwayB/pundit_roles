@@ -148,5 +148,9 @@ describe PunditRoles do
       expect{authorize!(raises_role, query: :raises_name_error?, associations: [:doesnt_exist])}.to raise_error(NameError)
     end
 
+    it 'raises ArgumentError, if invalid declaration found' do
+      expect{authorize!(regular_user, query: :basic_assoc_validation?, associations: [1, 2])}.to raise_error(ArgumentError)
+    end
+
   end
 end

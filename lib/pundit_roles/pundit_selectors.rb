@@ -8,7 +8,7 @@ module PunditSelectors
 
   # returns the formatted attributes for :show, :create and :update, ready to plug-and-play
   def attribute_permissions
-    @formatted_attribute_lists
+    @pundit_attribute_lists
   end
 
   # returns the permitted associations in the form of [Array] -> [{:posts => {:comments => [:author]}}, :settings]
@@ -18,19 +18,19 @@ module PunditSelectors
 
   # returns the permission hashes of permitted associations, ex: {:posts => {:attributes => {:show => [:text]}, :associations => {:show => [:comments]}}}
   def association_permissions
-    @pundit_association_permissions
+    @pundit_permission_table
   end
 
   def permitted_show_attributes
-    @formatted_attribute_lists[:show]
+    @pundit_attribute_lists[:show]
   end
 
   def permitted_create_attributes
-    @formatted_attribute_lists[:create]
+    @pundit_attribute_lists[:create]
   end
 
   def permitted_update_attributes
-    @formatted_attribute_lists[:update]
+    @pundit_attribute_lists[:update]
   end
 
   def permitted_show_associations
@@ -77,9 +77,9 @@ module PunditSelectors
 
   # returns the permitted show attributes of the associated models
   def association_show_attributes
-    return {} unless @pundit_association_permissions
+    return {} unless @pundit_permission_table
     associated_stuff = {}
-    @pundit_association_permissions.each do |role, action|
+    @pundit_permission_table.each do |role, action|
       associated_stuff[role] = action[:attributes].slice(:show)[:show]
     end
     return associated_stuff
@@ -87,9 +87,9 @@ module PunditSelectors
 
   # returns the permitted create attributes of the associated models
   def association_create_attributes
-    return {} unless @pundit_association_permissions
+    return {} unless @pundit_permission_table
     associated_stuff = {}
-    @pundit_association_permissions.each do |role, action|
+    @pundit_permission_table.each do |role, action|
       associated_stuff[role] = action[:attributes].slice(:create)[:create]
     end
     return associated_stuff
@@ -97,9 +97,9 @@ module PunditSelectors
 
   # returns the permitted update attributes of the associated models
   def association_update_attributes
-    return {} unless @pundit_association_permissions
+    return {} unless @pundit_permission_table
     associated_stuff = {}
-    @pundit_association_permissions.each do |role, action|
+    @pundit_permission_table.each do |role, action|
       associated_stuff[role] = action[:attributes].slice(:update)[:update]
     end
     return associated_stuff
@@ -107,9 +107,9 @@ module PunditSelectors
 
   # returns the permitted show associations of the associated models
   def association_show_associations
-    return {} unless @pundit_association_permissions
+    return {} unless @pundit_permission_table
     associated_stuff = {}
-    @pundit_association_permissions.each do |role, action|
+    @pundit_permission_table.each do |role, action|
       associated_stuff[role] = action[:associations].slice(:show)[:show]
     end
     return associated_stuff
@@ -117,9 +117,9 @@ module PunditSelectors
 
   # returns the permitted create associations of the associated models
   def association_create_associations
-    return {} unless @pundit_association_permissions
+    return {} unless @pundit_permission_table
     associated_stuff = {}
-    @pundit_association_permissions.each do |role, action|
+    @pundit_permission_table.each do |role, action|
       associated_stuff[role] = action[:associations].slice(:create)[:create]
     end
     return associated_stuff
@@ -127,11 +127,26 @@ module PunditSelectors
 
   # returns the permitted update associations of the associated models
   def association_update_associations
-    return {} unless @pundit_association_permissions
+    return {} unless @pundit_permission_table
     associated_stuff = {}
-    @pundit_association_permissions.each do |role, action|
+    @pundit_permission_table.each do |role, action|
       associated_stuff[role] = action[:associations].slice(:update)[:update]
     end
     return associated_stuff
   end
+
+  #
+  # # @api private
+  # def build_next_opts(assoc_opts, save_attributes, assoc, assoc_index)
+  #   next_opts = {}
+  #   [:show, :create, :update].each do |type|
+  #     next_opts[type] = assoc_opts[type][assoc_index].present? ? assoc_opts[type][assoc_index][assoc] : nil
+  #   end
+  #
+  #   [:create, :update].each do |type|
+  #     next_opts[type] = save_attributes[type].is_a?(Hash) ? save_attributes[type].values.last : nil
+  #   end
+  #
+  #   return next_opts
+  # end
 end
