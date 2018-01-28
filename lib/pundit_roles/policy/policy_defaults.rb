@@ -25,6 +25,9 @@ module PolicyDefaults
     false
   end
 
+  # defaults to this when no associated_as roles have been provided. It is also merged to the provided roles
+  DEFAULT_ASSOCIATED_ROLES = []
+
   # restricted attributes for show
   RESTRICTED_SHOW_ATTRIBUTES = []
 

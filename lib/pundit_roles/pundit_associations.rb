@@ -16,7 +16,7 @@ module PunditAssociations
     @pundit_allowed_associations = []
 
     handle_associations(
-      @pundit_primary_resource,
+      @pundit_current_options[:primary_resource],
       @pundit_requested_associations,
       @pundit_primary_permissions,
       @pundit_allowed_associations
@@ -96,6 +96,10 @@ module PunditAssociations
     assoc_policy = policy(assoc_constant)
     assoc_permission = assoc_policy.resolve_as_association(associated_roles, actions)
 
+    unless assoc_permission
+      raise_not_authorized(assoc_constant)
+    end
+
     @pundit_permission_table[association] = assoc_permission
   end
 
@@ -114,16 +118,16 @@ module PunditAssociations
 
   # @api private
   def determine_permitted_associations(requested_assoc, pundit_permission, permitted_opts, type)
-    permitted_actions =  format_association_list(pundit_permission[:associations]) #todo: rethink if we need this format
+    permitted_actions = pundit_permission[:associations][type]
 
     requested_assoc.each do |assoc|
       if assoc.is_a? Symbol or assoc.is_a? String
-        if permitted_actions[assoc].include? type
+        if permitted_actions and permitted_actions.include? assoc
           permitted_opts << assoc
         end
       elsif assoc.is_a? Hash
         assoc.each do |current_assoc, value|
-          if permitted_actions[current_assoc].include? type
+          if permitted_actions and permitted_actions.include? current_assoc
             permitted_opts << {current_assoc => []}
 
             determine_permitted_associations(
@@ -140,10 +144,10 @@ module PunditAssociations
 
   # @api private
   def determine_save_permissions(permitted_assoc, save_attributes, type)
-
     permitted_assoc.each do |assoc|
       if assoc.is_a? Symbol or assoc.is_a? String
-        save_attributes << {"#{assoc}_attributes".to_sym => @pundit_permission_table[assoc][:attributes][type]}
+        assoc_sym = "#{assoc}_attributes".to_sym
+        save_attributes << {assoc_sym => @pundit_permission_table[assoc][:attributes][type]}
       elsif assoc.is_a? Hash
         assoc.each do |current_assoc, value|
           assoc_sym = "#{current_assoc}_attributes".to_sym
