@@ -45,14 +45,12 @@ PunditRoles operates around the notion of _**roles**_. Each role needs to be def
 and provided with a conditional method that determines whether the `@user`(the `current_user` in the context of a Policy) 
 falls into this role. Additionally, each role can have a set of options defined for it(like _attributes_,
 _associations_ and _scope_). A basic example for a UserPolicy would be:
+
 ```ruby
 class UserPolicy < ApplicationPolicy
   role :regular_user,
        attributes: {
          show: %i(username name avatar is_confirmed created_at)
-       },
-       associations: {
-         show: %i(posts followers following)
        },
        scope: lambda{resource.regular_user_scope}
 
@@ -60,10 +58,6 @@ class UserPolicy < ApplicationPolicy
        attributes: {
          show: %i(email phone_number confirmed_at updated_at),
          update: %i(username email password password_confirmation current_password name avatar)
-       },
-       associations: {
-         show: %i(settings),
-         save: %i(settings)
        }
   
   # in the query methods, you define the roles which are allowed for the particular action
@@ -78,122 +72,22 @@ class UserPolicy < ApplicationPolicy
 end
 ```
 
-* This assumes that there are two methods defined in the UserPolicy called `regular_user?` and
-`correct_user?`. More on that in the [Defining roles](#defining-roles) section. 
-* How scopes work can be found in the [Scopes](#scopes) section. 
+In your Controller, you simply call the authorize! method for the action you want authorized:
 
-Then in your controller you call the `authorize!` method and pass it's return value to a variable: 
 ```ruby
 class UserController < ApplicationController
   def show
     @user = User.find(params[:id])
-    permitted = authorize! @user
-    # [...]
+    authorize! @user
+    render jsonapi: user, fields: permitted_show_attributes
   end
 end
 ```
 
-* Please note, that there were a couple of breaking change since `0.2.1`. View the 
-[changelog](https://github.com/StairwayB/pundit_roles/blob/master/CHANGELOG.md) for additional details.
-
-The `authorize!` method will return a hash of permitted attributes and associations for the corresponding action that the
-user has access to. What you do with that is your business. You may pass this hash to a serializer to limit what attributes
-are returned, or use it to sanitize create and update parameters(see the [Strong params](#strong-params) section).
-Accessors for each segment look like this: 
-```ruby
-permitted[:attributes][:show] # ex. returns => [:username, :name, :avatar, :is_confirmed, :created_at]
-permitted[:attributes][:create] # ex. returns => [:username, :email, :password, :password_confirmation]
-
-permitted[:associations][:show]
-permitted[:associations][:update]
-```
-
-The hash also contains the roles that the user has fulfilled:
-```ruby
-permitted[:roles] # ex. returns => [:regular_user, :correct_user]
-```
-
-If the user does not fall into any roles permitted by a query, the `authorize!` method will raise
-`Pundit::NotAuthorizedError`
-
-### Defining roles
-
-Roles are defined with the `role` method. It receives the name of the role as it's first argument and the
-options for the role as it's second. Additionally, you need to define a method which checks if
-the user falls into that role. This method's name must be the name of the role with a question
-mark at the end. For example, a `:correct_user` role's conditional method must be declared as
-`correct_user?`.
-
-Valid options for roles are:
-`:attributes, :associations, :scope`
-
-```ruby
-role :correct_user,
-      attributes: {show: [:name]},
-      associations: {show: [:posts]}
-
-role :admin_user
-      attributes: {show: [:name]},
-      associations: {show: [:posts]},
-      scope: lambda{resource.admin_scope}
-
-private
-
-def correct_user?
-  @user.id == @resource.id
-end
-
-def admin_user?
-  @user.admin?
-end
-```
-
-One thing to watch out for is that roles are not inherited, because each is unique to the model in question. 
-But since the name of the role is just the conditional method for the role,
-without the '?' question mark, it is encouraged to inherit from an `ApplicationPolicy`, 
-and define common `role` conditionals there. 
-
-* see [Declaring attributes and associations](#declaring-attributes-and-associations) for how to declare 
-attributes and associations.
-
-### Users with multiple roles
-
-You may have noticed that in the first example `correct_user` has fewer permitted attributes and associations
-defined than `regular_user`. That is because PunditRoles does not treat roles as exclusionary.
-Users may have a single role or they may have multiple roles, within the context of the model they are trying to access.
-In the previous example, a `correct_user`, meaning a `regular_user` trying to access it's own model, is naturally 
-also a `regular_user`, so it will have access to all attributes and associations a `regular_user` has access to plus the 
-ones that a `correct_user` has access to. 
-
-Take this example, to better illustrate what is happening: 
-
-```ruby
-role :regular_user,
-     attributes: {
-       show: %i(username name avatar)
-     }
-
-role :correct_user,
-     attributes: {
-       show: %i(email phone_number)
-     }
-
-role :admin_user,
-     attributes: {
-       show: %i(email is_admin)
-     }
-```
-
-Here, a user which fulfills the `admin_user` condition trying to access it's own model, would receive the 
-attributes and associations of all three roles, without any duplicates, meaning the `permitted[:attributes][:show]` would look like: 
-```ruby
-[:username, :name, :avatar, :email, :phone_number, :is_admin]
-```
-
-If the user is an `admin`, but is not a `correct_user`, it will not receive the `phone_number` attribute,
-because that is unique to `correct_user` and vice versa.
-
-At present, there is no way to prevent merging of roles. Such a feature may be coming in a future update.
+An in-depth description of the features can be found on the wiki:
+1. [The basics](https://github.com/StairwayB/pundit_roles/wiki/The-Basics)
+2. [Defining roles](https://github.com/StairwayB/pundit_roles/wiki/Defining-roles)
+3. [Declaring attributes and associations](https://github.com/StairwayB/pundit_roles/wiki/Declaring-attributes-and-associations)
 
 ### The :guest role
 
@@ -222,19 +116,79 @@ class UserPolicy < ApplicationPolicy
 end
 ```
 
-**Important** 
-
+#### *Important* 
 * The `:guest` role is exclusionary by default, meaning it cannot be merged
 with other roles. It is also the first role that is evaluated, and if the user is a `:guest`, it will return the guest
 attributes if `:guest` is allowed, or raise `Pundit::NotAuthorizedError` if not. 
-
 * Do **not** use a custom role for `nil` users, use `:guest`. 
 If you do, it will most likely lead to unwanted errors.
 
+### Authorizing Associations
+
+Detailed description in the [Authorizing associations](https://github.com/StairwayB/pundit_roles/wiki/Authorizing-Associations) wiki.
+
+* Controller
+```ruby
+class UsersController < ApplicationController
+    def show
+      user = User.where(id: 1).includes([:followers, {posts: [:comments]}]).first
+      authorize!(user, associations: [:followers, {posts: [:comments]}])
+      # then you just render the results, using the helper methods 
+      render jsonapi: user, include: permitted_show_associations, fields: permitted_show_attributes
+    end
+end
+```
+
+#### *Important*
+
+* Only the **primary** model is authorized, meaning that PunditRoles will not run the 
+query methods(i.e. `allow :correct_user, ...`) or the conditional methods of the roles in associated policies!
+This means that you must specify which roles correspond to which roles in associated policies(check the wiki for a 
+more detailed description).
+
+* Policies
+```ruby
+class UserPolicy < ApplicationPolicy
+  role :regular_user,
+       attributes: {...},
+       associations: {show: [:posts]},
+       associated_as: {posts: [:regular_user]}
+       
+  role :correct_user,
+         attributes: {...},
+         associations: {show: [:posts]},
+         associated_as: {posts: [:regular_user, :correct_user]}
+                                                               
+  def show? 
+    allow :regular_user, :correct_user
+  end
+end
+
+class PostPolicy < ApplicationPolicy
+  role :regular_user,
+       attributes: {...},
+       associations: {show: [:comments]},
+       associated_as: {posts: [:regular_user]}
+       
+  role :correct_user,
+         attributes: {...},
+         associations: {show: [:comments]},
+         associated_as: {posts: [:regular_user]} # is NOT associated as :correct_user to comments
+end
+
+class CommentPolicy < ApplicationPolicy
+  role :regular_user, # both :correct_user and :regular_user in PostPolicy will be a :regular_user here
+       attributes: {...}
+       
+  role :correct_user,
+       attributes: {...}
+end
+```
+
 ### Scopes
-PunditRoles supports limiting scopes for actions which return a list of records. If you wish to do
-this, define a scope option for a role as a `lambda`, and then call `policy_scope!` for the list you want to 
-limit. It should look something like this: 
+Detailed description in the [Defining scopes for roles](https://github.com/StairwayB/pundit_roles/wiki/Defining-scopes-for-roles) wiki.
+
+* Policy: 
 ```ruby
 role :guest,
     attributes: {
@@ -256,171 +210,33 @@ def index?
   allow :guest, :regular_user
 end
 ```
-Then in your controller you pass the list you want to limit based on what role the current user fulfills:
+* Controller
 ```ruby
 def index
   @users = policy_scope!(User.all)
 end
 ```
-The `policy_scope!` method returns the scope for the role, or raises `Pundit::NotAuthorizedError` if the user is not 
-allowed to perform the action. Since the syntax for permitting scopes is the same as the syntax for getting the permitted
-attributes and associations, you may use both `authorize!` and `policy_scope!` for the same action. A recommended usage is
-to use both(this example uses the excellent [jsonapi-rails](https://github.com/jsonapi-rb/jsonapi-rails) gem for serialization): 
-```ruby
-def index
-  @users = policy_scope!(User.all)
-  permitted = authorize! @users
-  render jsonapi: @users, fields: {users: permitted[:attributes][:show]}
-end
-```
 
-#### Important: Scope declaration order
+### Strong parameters
 
-While attributes and associations for roles are merged, scopes are **not**! This means that whenever you wish to authorize a 
-list of records,you must take care in what order you define the roles. PunditRoles will go over the allowed roles in a query 
-method in the order in which they were defined, and when it finds a role that the user fulfills, 
-it will return the scope for that role.
+Detailed description in the [Strong parameters](https://github.com/StairwayB/pundit_roles/wiki/Strong-parameters) wiki.
 
-Take this example, where there are two roles permitted for an `index` action: `regular_user` and `:admin_user`:
-```ruby
-
-role :regular_user, scope: lambda{resource.regular_user}
-role :admin_user, scope: lambda{resource.admin_user}
-
-def index?
-  allow :regular_user, :admin_user
-end
-
-private
-
-def regular_user?
-  @user.present?
-end
-
-def admin_user?
-  @user.admin?
-end
-```
-
-Whenever an admin tries to access the `index` action, PunditRoles will first check if the admin is a `regular_user`,
-which will be true, since admin is in fact logged in. Therefore, it will return the scope defined for `regular_user`,
-instead of the scope defined for `admin_user`. This is not the desired behaviour. In order to avoid this, the `index?` 
-method needs to look like this:
-```ruby
-def index?
-  allow :admin_user, :regular_user
-end
-```
-In this case, `admin_user` is evaluated before `regular_user`, so admins will correctly get their own scope, instead of the
-`regular_user` scope.
-
-* The rule is: whenever a role supersedes another, declare that role first. If two or more roles are exclusionary,
-meaning that there is no way that a user can fulfill more than one of these roles, then the order in which they are declared
-does not matter. The guest role can be declared wherever, since PunditRoles will always evaluate whether the user is a 
-`guest` first. 
-
-### Strong params
-PunditRoles makes it easy to handle role-based strong params. Simply pass the `[:create]`, `[:update]` or `[:save]` 
-attribute of the `[:attributes]` attribute of the hash returned by the `authorize!` method to the params sanitizer
-(that's a mouthful).
+* Controller
 ```ruby
 def create
-  permitted = authorize! User
-  @user = User.new(create_params(permitted[:attributes][:create]))
+  authorize! User # you will need to authorize the model first, in order to get the permitted attributes
+  @user = User.new(create_params)
   if @user.save!
-    render jsonapi: @user, fields: {users: permitted[:attributes][:show]}
+    render jsonapi: @user, fields: {users: permitted_show_attributes}
   end
 end
 
 private
   
-def create_params(permitted_params)
-  params.require(:users).permit(permitted_params)
+def create_params
+  params.require(:users).permit(permitted_create_attributes)
 end
 ```
-
-### Declaring attributes and associations
-
-* Attributes and associations in this heading are referred to collectively as _options_
-
-#### Explicit declaration of options
-
-Options are declared with the `attributes` and `associations` options of the role method.
-
-Valid options for both `:attributes` and `:associations` are `:show`,`:create`,`:update` and `:save` or the implicit options.
-
-#### Implicit declaration of options
-
-PunditRoles provides a set of helpers to be able to implicitly declare the options of a role. 
-
- ---
- 
-Although this is a possibility, it is _highly recommended_ that you explicitly declare 
-attributes for each role, to avoid any issues further in development, like say, an extra 
-attribute that is added to a model later down the line. 
-
----
-* **show_all**
-
-    Will be able to view all non-restricted options.
-    
-    ```ruby
-    role :admin,
-         attributes: :show_all,
-         associations: :show_all
-    ```
-* **create_all, update_all, save_all**
-
-    Will be able to create, update or save all non-restricted attributes. These options also
-    imply that the role will be able to `show_all` options. 
-    ```ruby
-    role :admin,
-         attributes: :save_all,
-         associations: :update_all
-    ```
-
-* **all**
-
-    Declare on a per-action basis whether the role has access to all options. 
-    ```ruby
-    role :admin,
-          attributes: {
-            show: :all,
-            save: %i(name username email)
-          },
-          associations: {
-            show: :all
-          }
-    ```
-
-* **all_minus**
-
-    Can be used to allow all attributes, except those declared. 
-    ```ruby
-    role :admin,
-          attributes: {
-            show: [:all_minus, :password_digest]
-          }
-    ```
-    The `:admin` role will now be able to view all attributes, except `password_digest`.
-
-### Restricted options
-
-PunditRoles allows you to define restricted options which will be removed when declaring 
-implicitly. By default, only the `:id`, `:created_at`, `:updated_at` attributes are restricted
-for `create`,`update` and `save` actions. You may overwrite this behaviour on a per-policy basis: 
-
-```ruby
-RESTRICTED_SHOW_ATTRIBUTES = [:attr_one, :attr_two]
-```
-Or if you want to add to it, instead of overwriting(here, 
-the second `RESTRICTED_SHOW_ATTRIBUTES` resolves to the one declared on the parent):
-```ruby
-RESTRICTED_SHOW_ATTRIBUTES = RESTRICTED_SHOW_ATTRIBUTES + [:attr_one, :attr_two]
-```
-
-There are 8 `RESTRICTED_#{action}_#{option_type}` constants in total, where `option_type` refers
-to either `ATTRIBUTES` or `ASSOCIATIONS` and `action` refers to `SHOW`, `CREATE`, `UPDATE` or `SAVE`.
 
 ## Porting over from Pundit
 If you're already using Pundit, this gem should not conflict with any existing functionality. However, there
@@ -432,7 +248,7 @@ fact that the Policy can have scopes as well as records passed to it.
 that as well, if you so choose.
 
 ## Planned updates
-Authorizing associations, generators, and possibly rspec helpers will be coming in the near future.
+Generators, some config options, and possibly rspec helpers will be coming in the near future.
 
 ## Contributing
 Bug reports are welcome on GitHub at [StairwayB](https://github.com/StairwayB/pundit_roles).
