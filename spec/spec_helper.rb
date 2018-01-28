@@ -321,7 +321,8 @@ class AssociationPermission < Base
      OpenStruct.new(:name => :show, :class_name => 'AssociatedPermission'),
      OpenStruct.new(:name => :create, :class_name => 'AssociatedPermission'),
      OpenStruct.new(:name => :update, :class_name => 'AssociatedPermission'),
-     OpenStruct.new(:name => :save, :class_name => 'AssociatedPermission')]
+     OpenStruct.new(:name => :save, :class_name => 'AssociatedPermission'),
+     OpenStruct.new(:name => :raises_on_association, :class_name => 'AssociatedPermission')]
   end
 end
 
@@ -360,6 +361,11 @@ class AssociationPermissionPolicy < BasePolicy
        },
        associated_as: {:show => [:doesnt_exist]}
 
+  role :raises_on_association_role,
+       associations: {
+         show: [:associated_permission]
+       }
+
   def basic_assoc_validation?
     allow :regular_user, :selector_helper_user
   end
@@ -374,6 +380,10 @@ class AssociationPermissionPolicy < BasePolicy
 
   def raises_name_error?
     allow :raises_role
+  end
+
+  def raises_on_association?
+    allow :raises_on_association_role
   end
 
   private
@@ -396,6 +406,10 @@ class AssociationPermissionPolicy < BasePolicy
 
   def raises_role?
     @resource.id == 'raises_role'
+  end
+
+  def raises_on_association_role?
+    @resource.id = 'raises_on_association_role'
   end
 end
 
@@ -435,4 +449,48 @@ class NestedPermissionPolicy < BasePolicy
        attributes: {show: [:nested]}
   role :other_user,
        attributes: {show: [:other_nested]}
+end
+
+
+class DefaultRoleDeclaration < Base; end
+
+class DefaultRoleDeclarationPolicy < BasePolicy
+  role :default_role_on_association,
+       attributes: {show: [:attribute]},
+       associations: {show: [:default_role_associated]}
+
+  role :merge_default_and_provided_role,
+       attributes: {show: [:attribute]},
+       associations: {show: [:default_role_associated]},
+       associated_as: {default_role_associated: [:merged_default_and_provided_role]}
+
+  def default_role?
+    allow :default_role_on_association
+  end
+
+  def merge_default_and_provided?
+    allow :merge_default_and_provided_role
+  end
+
+  private
+
+  def default_role_on_association?
+    @resource.id = 'default_role_on_association'
+  end
+
+  def merge_default_and_provided_role?
+    @resource.id = 'merge_default_and_provided_role'
+  end
+end
+
+class DefaultRoleAssociated < Base; end
+
+class DefaultRoleAssociatedPolicy < BasePolicy
+  DEFAULT_ASSOCIATED_ROLES = [:default_associated_role]
+
+  role :default_associated_role,
+       attributes: {show: [:assoc_attribute]}
+
+  role :merged_default_and_provided_role,
+       attributes: {show: [:merged_attribute]}
 end

@@ -7,6 +7,7 @@ describe PunditRoles do
     let(:nested_user) { AssociationPermission.new('nested_user') }
     let(:aliased_user) {AssociationPermission.new('aliased_assoc')}
     let(:raises_role) {AssociationPermission.new('raises_role')}
+    let(:raises_on_association_role) {AssociationPermission.new('raises_on_association_role')}
 
     it 'returns the associations and associated_as roles for the current_roles' do
       expect(authorize!(regular_user, query: :basic_assoc_validation?, associations: [:associated_permission]))
@@ -144,12 +145,56 @@ describe PunditRoles do
             )
     end
 
+    describe 'Default associated as roles' do
+      let(:default_role_on_association) {DefaultRoleDeclaration.new('default_role_on_association')}
+      let(:merged_default_and_provided_role) {DefaultRoleDeclaration.new('merged_default_and_provided_role')}
+
+      it 'will default to the default role, when it is defined and no roles are provided' do
+        authorize!(default_role_on_association, query: :default_role?, associations: [:default_role_associated])
+        expect(association_permissions)
+          .to eq({
+                   default_role_associated: {
+                     attributes: {show: %i(assoc_attribute)},
+                     associations: {},
+                     roles: {
+                       for_current_model: [:default_associated_role],
+                       for_associated_models: {}
+                     }}
+                 }
+              )
+      end
+
+      it 'will merge the default and provided roles if both are present' do
+        authorize!(merged_default_and_provided_role, query: :merge_default_and_provided?, associations: [:default_role_associated])
+        expect(association_permissions)
+          .to eq({
+                   default_role_associated: {
+                     attributes: {show:[:merged_attribute, :assoc_attribute]},
+                     associations: {},
+                     roles: {
+                       for_current_model: [:merged_default_and_provided_role, :default_associated_role],
+                       for_associated_models: {}
+                     }}
+                 }
+              )
+      end
+    end
+
     it 'raises NameError, if association could not be found' do
       expect{authorize!(raises_role, query: :raises_name_error?, associations: [:doesnt_exist])}.to raise_error(NameError)
     end
 
     it 'raises ArgumentError, if invalid declaration found' do
       expect{authorize!(regular_user, query: :basic_assoc_validation?, associations: [1, 2])}.to raise_error(ArgumentError)
+    end
+
+    it 'raises NotAuthorizedError, if associated roles are not present, and Default role is not defined' do
+      expect{authorize!(
+        raises_on_association_role,
+        query: :raises_on_association?,
+        associations: [
+          :associated_permission,
+        ])}.to raise_error(Pundit::NotAuthorizedError)
     end
 
   end

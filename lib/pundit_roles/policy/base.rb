@@ -36,8 +36,6 @@ module Policy
       end
 
       current_roles = determine_current_roles(permitted_roles)
-      return false unless current_roles.present?
-
       return unique_merge(current_roles, permissions)
     end
 
@@ -64,7 +62,10 @@ module Policy
 
     def resolve_as_association(roles, actions)
       permissions = self.class.permissions
-      return unique_merge(roles, permissions, actions)
+      default_roles = self.class::DEFAULT_ASSOCIATED_ROLES
+      associated_roles = roles.present? ? roles|default_roles : default_roles
+
+      return unique_merge(associated_roles, permissions, actions)
     end
 
     private
@@ -74,8 +75,8 @@ module Policy
     # @param permitted_roles [Hash] roles returned by the query
     # @param permissions [Hash] unrefined hash of options defined by all permitted_for methods
     def handle_guest_options(permitted_roles, permissions)
-      guest_associations = self.class.role_associations[:guest] ? self.class.role_associations[:guest] : {}
-        if permitted_roles.include? :guest
+      if permitted_roles.include? :guest
+        guest_associations = self.class.role_associations[:guest] ? self.class.role_associations[:guest] : {}
         return permissions[:guest].merge(
           {roles:
              {
