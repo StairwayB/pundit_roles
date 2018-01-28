@@ -5,10 +5,10 @@ require_relative 'policy_defaults'
 module Policy
 
   # Base policy class to be extended by all other policies, authorizes users based on roles they fall into,
-  # return a uniquely merged hash of permitted attributes and associations of each role the @user has.
+  # Can be used to get the attributes or scope of roles.
   #
   # @attr_reader user [Object] the user that initiated the action
-  # @attr_reader resource [Object] the object we're checking permissions of
+  # @attr_reader resource [Object] the object we're checking @permissions of
   class Base
     extend Role
     include PolicyDefaults
@@ -17,10 +17,11 @@ module Policy
     def initialize(user, resource)
       @user = user
       @resource = resource
+      freeze
     end
 
     # Retrieves the permitted roles for the current query, checks if user is one or more of these roles
-    # and return a hash of attributes and associations that the user has access to.
+    # and return a hash of attributes that the user has access to.
     #
     # @param query [Symbol, String] the predicate method to check on the policy (e.g. `:show?`)
     def resolve_query(query)
@@ -37,7 +38,7 @@ module Policy
       current_roles = determine_current_roles(permitted_roles)
       return false unless current_roles.present?
 
-      return options_or_merge(current_roles, permissions)
+      return unique_merge(current_roles, permissions)
     end
 
     # Retrieves the permitted roles for the current query and checks each role, until it finds one that
@@ -61,6 +62,11 @@ module Policy
       return instance_eval &scopes[current_roles[0]]
     end
 
+    def resolve_as_association(roles, actions)
+      permissions = self.class.permissions
+      return unique_merge(roles, permissions, actions)
+    end
+
     private
 
     # Return the default :guest role if guest is present in permitted_roles. Return false otherwise
@@ -68,8 +74,15 @@ module Policy
     # @param permitted_roles [Hash] roles returned by the query
     # @param permissions [Hash] unrefined hash of options defined by all permitted_for methods
     def handle_guest_options(permitted_roles, permissions)
-      if permitted_roles.include? :guest
-        return permissions[:guest].merge({roles: [:guest]})
+      guest_associations = self.class.role_associations[:guest] ? self.class.role_associations[:guest] : {}
+        if permitted_roles.include? :guest
+        return permissions[:guest].merge(
+          {roles:
+             {
+               for_current_model: [:guest],
+               for_associated_models: guest_associations
+             }
+          })
       end
       return false
     end
@@ -81,18 +94,47 @@ module Policy
       return false
     end
 
-    # inspects the current_roles and returns the appropriate option
+    # Uniquely merge the options of all roles that the user fulfills
+    # Returns only the action(i.e. show, create) that was requested, by default this is all actions
     #
-    # @param current_roles [Hash] roles that the current user fulfills
-    # @param permissions [Hash] unrefined hash of options defined by all permitted_for methods
-    def options_or_merge(current_roles, permissions)
-      return false unless current_roles.present?
+    # @param roles [Hash] roles that the user fulfills
+    # @param permissions [Hash] the options for all roles
+    # @param requested_actions [Array] the requested actions
+    def unique_merge(roles, permissions, requested_actions = [:show, :create, :update, :save])
+      return false unless roles.present?
+      merged_hash = {attributes: {}, associations: {}, roles: {for_current_model: [], for_associated_models: {}}}
 
-      if current_roles.length == 1
-        return permissions[current_roles[0]].merge({roles: [current_roles[0]]})
+      roles.each do |role|
+        merged_hash[:roles][:for_current_model] |= [role]
+        merged_hash[:roles][:for_associated_models] = merge_associated_roles(role, merged_hash[:roles][:for_associated_models])
+
+        raise ArgumentError, "Role #{role} is not defined" unless permissions[role].present?
+
+        permissions[role].each do |type, permitted_actions|
+          actions = permitted_actions.slice(*requested_actions)
+          actions.each do |key, value|
+            unless merged_hash[type][key]
+              merged_hash[type][key] = []
+            end
+            merged_hash[type][key] |= value
+          end
+        end
       end
 
-      return unique_merge(current_roles, permissions)
+      return merged_hash
+    end
+
+    def merge_associated_roles(role, merged_opts)
+      associated_roles = self.class.role_associations
+
+      return {} unless associated_roles[role].present?
+
+      associated_roles[role].each do |k, v|
+        assoc_role = {k => v}
+        merged_opts = merged_opts.merge(assoc_role){ | key, old, new | old | new}
+      end
+
+      return merged_opts
     end
 
     # Build an Array of the roles that the user fulfills.
@@ -112,27 +154,6 @@ module Policy
       end
 
       return current_roles
-    end
-
-    # Uniquely merge the options of all roles that the user fulfills
-    #
-    # @param roles [Hash] roles that the user fulfills
-    # @param permissions [Hash] the options for all roles
-    def unique_merge(roles, permissions)
-      merged_hash = {attributes: {}, associations: {}, roles: roles}
-
-      roles.each do |role|
-        permissions[role].each do |type, actions|
-          actions.each do |key, value|
-            unless merged_hash[type][key]
-              merged_hash[type][key] = []
-            end
-            merged_hash[type][key] |= value
-          end
-        end
-      end
-
-      return merged_hash
     end
 
     # Helper method for testing the conditional of a role
@@ -180,20 +201,6 @@ module Policy
     def _allowed_permission_types
       [Array, FalseClass, TrueClass]
     end
-
-    # Scope class from Pundit, not used in this gem
-    class Scope
-      attr_reader :user, :scope
-
-      def initialize(user, scope)
-        @user = user
-        @scope = scope
-      end
-
-      def resolve
-        scope
-      end
-
-    end
   end
+  
 end

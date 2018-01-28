@@ -14,3 +14,5 @@
 
 - `authorize` method has been renamed to `authorize!`
 - added support for limiting scopes, can be called with `policy_scope!`
+
+## 0.6.0 

@@ -8,6 +8,8 @@ gem 'activemodel'
 gem 'pundit', '~> 1.1.0'
 
 group :development, :test do
+  # gem 'simplecov', :require => false
+
   gem "bundler"
   gem "pry"
   gem "rake"

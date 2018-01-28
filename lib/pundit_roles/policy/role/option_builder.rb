@@ -50,10 +50,6 @@ module Role
     # @param options [Hash] unrefined hash containing either attributes or associations
     # @param type [String] the type of option to be built, can be 'attributes' or 'associations'
     def init_options(options, type)
-      unless options.present?
-        return {}
-      end
-
       raise ArgumentError, "Permitted #{type}, if declared, must be declared as a Hash or Symbol, expected something along the lines of
                             {show: [:id, :name], create: [:name], update: :all} or :all, got #{options}" unless options.is_a? Hash
 
@@ -61,21 +57,27 @@ module Role
       options.each do |key, value|
         raise ArgumentError, "Expected Symbol or Array, for #{key} attribute, got #{value} of kind #{value.class}" unless _permitted_value_types value
 
-        if value.is_a? Symbol and value == :all
-          parsed_options[key] = send("get_all_#{type}")
-          next
+        if key == :save
+          actions = [:create, :update]
+        else
+          actions = [key]
         end
 
-        # todo: This needs some rethinking
-        if value.is_a? Array
-          case value.first
-            when :all_minus
-              parsed_options[key] = send("get_all_#{type}") - (value - [value.first])
-            else
-              parsed_options[key] = value
+        if value.is_a? Symbol and value == :all
+          actions.each do |action|
+            parsed_options[action] = remove_restricted(action, type)
           end
           next
         end
+
+        if value.is_a? Array
+          actions.each do |action|
+            parsed_options[action] = [] unless parsed_options[action].present?
+            parsed_options[action] |= value
+          end
+          next
+        end
+
       end
 
       return parsed_options
@@ -91,29 +93,30 @@ module Role
       parsed_options = {}
       case option
         when :show_all
-          parsed_options[:show] = get_all(type)
+          parsed_options[:show] = remove_restricted(:show, type)
+        when :save_all
+          [:show, :create, :update].each do |action|
+            parsed_options[action] = remove_restricted(action, type)
+          end
         else
-          of_type = option.to_s.gsub('_all', '').to_sym
-          parsed_options[:show] = get_all(type)
-          parsed_options[of_type] = get_all(type)
+          option_type = option.to_s.gsub('_all', '').to_sym
+          [:show, option_type].each do |action|
+            parsed_options[action] = remove_restricted(action, type)
+          end
       end
 
-      return remove_restricted(parsed_options, type)
+      return parsed_options
     end
 
     # Remove restricted attributes declared in the #policy RESTRICTED_#{key}_#{type} constants
     #
-    # @param obj [Hash] refined hash containing either attributes or associations
+    # @param action [Hash] the action we're fetch the restricted options for
     # @param type [String] the type of option to be built, can be 'attributes' or 'associations'
-    def remove_restricted(obj, type)
-      permitted_obj_values = {}
+    def remove_restricted(action, type)
+      all_attributes = get_all(type)
+      restricted = "#{@policy}::RESTRICTED_#{action.upcase}_#{type.upcase}".constantize
 
-      obj.each do |key, value|
-        restricted = "#{@policy}::RESTRICTED_#{key.upcase}_#{type.upcase}".constantize
-        permitted_obj_values[key] = restricted.present? ? value - restricted : value
-      end
-
-      return permitted_obj_values
+      return restricted.present? ? all_attributes - restricted : all_attributes
     end
 
     # Returns all attributes of a record or scope defined in the #policy
@@ -130,7 +133,8 @@ module Role
       begin
         send("get_all_#{type}")
       rescue NameError => e
-        raise ArgumentError, "#{@policy} does not have a corresponding model: #{@policy.to_s.gsub('Policy', '')}, implicit declarations are not allowed => #{e.message}"
+        raise ArgumentError, "#{@policy} does not seem to have a corresponding model: "+
+          "#{@policy.to_s.gsub('Policy', '')}, implicit declarations are not allowed => #{e.message}"
       end
     end
 

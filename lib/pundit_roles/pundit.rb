@@ -1,57 +1,85 @@
+require 'pundit_roles/pundit_associations'
+require 'pundit_roles/pundit_selectors'
+
 # Contains the overwritten #authorize method
 module PunditOverwrite
+  include PunditAssociations
+  include PunditSelectors
 
   # A modified version of Pundit's default authorization. Returns a hash of permitted attributes or raises exception
   # it the user is not authorized
   #
-  # @param resource [Object] the object we're checking permissions of
-  # @param query [Symbol, String] the predicate method to check on the policy (e.g. `:show?`).
-  #   If omitted then this defaults to the Rails controller action name.
+  # @param resource [Object] the object we're checking @permitted_attributes of
+  # @param opts [Hash] options for scopes: query, associations
+  #   query: the method which returns the permissions,
+  #     If omitted then this defaults to the Rails controller action name.
+  #   associations: associations to authorize, defaults to []
   # @raise [NotAuthorizedError] if the given query method returned false
-  # @return [Object, Hash] Returns the permissions hash or the resource
-  def authorize!(resource, query = nil)
-    query ||= params[:action].to_s + '?'
+  # @return [Object, Hash] Returns the @permitted_attributes hash or the resource
+  def authorize!(resource, opts = {query: nil, associations: []})
+    opts[:query] ||= params[:action].to_s + '?'
 
     @_pundit_policy_authorized = true
 
     policy = policy(resource)
-    permitted_records = policy.resolve_query(query)
+    primary_permission = policy.resolve_query(opts[:query])
 
-    return determine_action(resource, query, policy, permitted_records)
+    unless primary_permission
+      raise Pundit::NotAuthorizedError, query: opts[:query], record: resource, policy: policy
+    end
+
+    if primary_permission.is_a? TrueClass
+      return resource
+    end
+
+    @pundit_primary_resource = resource.is_a?(Class) ? resource : resource.class
+    @pundit_primary_permissions = primary_permission
+
+    primary_resource_identifier = @pundit_primary_resource.name.underscore.to_sym
+
+    @pundit_attribute_lists = {
+      show: {primary_resource_identifier => primary_show_attributes},
+      create: [*primary_create_attributes],
+      update: [*primary_update_attributes]
+    }
+    @pundit_permission_table = {}
+    @pundit_permitted_associations = {show: [], create: [], update: []}
+
+    if opts[:associations].present?
+      authorize_associations!(opts)
+    end
+
+    return @pundit_primary_permissions
   end
 
   # Returns the permitted scope or raises exception
   #
-  # @param resource [Object] the object we're checking permissions of
-  # @param query [Symbol, String] the predicate method to check on the policy (e.g. `:show?`).
-  #   If omitted then this defaults to the Rails controller action name.
+  # @param resource [Object] the object we're checking @permitted_attributes of
+  # @param opts [Hash] options for scopes: query, associations
+  #   query: the method which returns the permissions,
+  #     If omitted then this defaults to the Rails controller action name.
+  #   associations: associations to scope, defaults to []
   # @raise [NotAuthorizedError] if the given query method returned false
-  # @return [Object, ActiveRecord::Association] Returns the permissions hash or the resource
-  def policy_scope!(resource, query = nil)
-    query ||= params[:action].to_s + '?'
+  # @return [Object, ActiveRecord::Association] Returns the @permitted_attributes hash or the resource
+  def policy_scope!(resource, opts= {query: nil, associations: []})
+    opts[:query] ||= params[:action].to_s + '?'
 
     @_pundit_policy_scoped = true
 
     policy = policy(resource)
-    permitted_scope = policy.resolve_scope(query)
+    permitted_scope = policy.resolve_scope(opts[:query])
 
-    return determine_action(resource, query, policy, permitted_scope)
-  end
-
-  private
-
-  # @api private
-  def determine_action(resource, query, policy, permitted)
-    unless permitted
-      raise Pundit::NotAuthorizedError, query: query, record: resource, policy: policy
+    unless permitted_scope
+      raise Pundit::NotAuthorizedError, query: opts[:query], record: resource, policy: policy
     end
 
-    if permitted.is_a? TrueClass
+    if permitted_scope.is_a? TrueClass
       return resource
     end
 
-    return permitted
+    return permitted_scope
   end
+
 end
 
 # Prepends the PunditOverwrite to Pundit, in order to overwrite the default Pundit #authorize method
