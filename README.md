@@ -14,8 +14,9 @@ If you are already using Pundit, this should not conflict with any of Pundit's e
 You may use Pundit's features as well as the features from this gem interchangeably. There are
 some caveats however, see the [Porting over from Pundit](#porting-over-from-pundit).
 
-Please note that this gem is not affiliated with Pundit or it's creators, but it very much
-appreciates the work that they did with their great authorization system.
+Please note that this gem is not affiliated with Pundit or it's creators.
+
+* The Readme contains only a cursory overview of the gem. For an in-depth tutorial, consult the [wiki](https://github.com/StairwayB/pundit_roles/wiki)
 
 ## Installation
 
@@ -139,13 +140,6 @@ class UsersController < ApplicationController
 end
 ```
 
-#### *Important*
-
-* Only the **primary** model is authorized, meaning that PunditRoles will not run the 
-query methods(i.e. `allow :correct_user, ...`) or the conditional methods of the roles in associated policies!
-This means that you must specify which roles correspond to which roles in associated policies(check the wiki for a 
-more detailed description).
-
 * Policies
 ```ruby
 class UserPolicy < ApplicationPolicy
@@ -173,17 +167,24 @@ class PostPolicy < ApplicationPolicy
   role :correct_user,
          attributes: {...},
          associations: {show: [:comments]},
-         associated_as: {posts: [:regular_user]} # is NOT associated as :correct_user to comments
+         associated_as: {posts: [:regular_user]}
 end
 
 class CommentPolicy < ApplicationPolicy
-  role :regular_user, # both :correct_user and :regular_user in PostPolicy will be a :regular_user here
+  role :regular_user, 
        attributes: {...}
        
   role :correct_user,
        attributes: {...}
 end
 ```
+
+#### *Important*
+
+* Only the **primary** model is authorized, meaning that PunditRoles will not run the 
+query methods(i.e. `allow :correct_user, ...`) or the conditional methods of the roles in associated policies!
+This means that you must specify which roles correspond to which roles in associated policies(check the wiki for a 
+more detailed description).
 
 ### Scopes
 Detailed description in the [Defining scopes for roles](https://github.com/StairwayB/pundit_roles/wiki/Defining-scopes-for-roles) wiki.
